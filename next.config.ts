@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // No output: standalone — incompatible with Cloudflare Pages
+  output: "export",
   images: {
     unoptimized: true,
   },
