@@ -7,14 +7,45 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install psycopg2
+        run: pip install psycopg2-binary
 
       - name: Execute SQL Setup
         env:
-          DATABASE_URL: postgresql://postgres:%401412Yasser%40@db.ucmpclgctjeyoimtmqir.supabase.co:5432/postgres
+          DB_HOST: db.ucmpclgctjeyoimtmqir.supabase.co
+          DB_PORT: 5432
+          DB_NAME: postgres
+          DB_USER: postgres
+          DB_PASSWORD: '@1412Yasser@'
         run: |
-          psql "$DATABASE_URL" -f supabase/setup.sql || true
-          echo "SQL execution attempted"
+          python3 scripts/setup_database.py
+
+      - name: Verify Tables
+        env:
+          DB_HOST: db.ucmpclgctjeyoimtmqir.supabase.co
+          DB_PORT: 5432
+          DB_NAME: postgres
+          DB_USER: postgres
+          DB_PASSWORD: '@1412Yasser@'
+        run: |
+          python3 -c "
+          import psycopg2
+          conn = psycopg2.connect(
+              host='$DB_HOST', port=int('$DB_PORT'), dbname='$DB_NAME',
+              user='$DB_USER', password='$DB_PASSWORD', sslmode='require'
+          )
+          cur = conn.cursor()
+          for table in ['profiles', 'site_settings', 'projects', 'ai_chat_messages']:
+              cur.execute(f\"SELECT count(*) FROM information_schema.tables WHERE table_name='{table}'\")
+              count = cur.fetchone()[0]
+              print(f'Table {table}: {\"EXISTS\" if count > 0 else \"NOT FOUND\"} ')
+          cur.close()
+          conn.close()
+          "
