@@ -1,0 +1,20 @@
+name: Setup Database
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Execute SQL Setup
+        env:
+          DATABASE_URL: postgresql://postgres:%401412Yasser%40@db.ucmpclgctjeyoimtmqir.supabase.co:5432/postgres
+        run: |
+          psql "$DATABASE_URL" -f supabase/setup.sql || true
+          echo "SQL execution attempted"
