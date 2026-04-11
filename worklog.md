@@ -54,3 +54,23 @@ Stage Summary:
 - Supabase: site_settings works (public RLS), but profiles/projects/messages have infinite RLS recursion
 - SQL fix script available at: /home/z/my-project/download/fix_rls_policies.sql
 - User needs to run the SQL script manually in Supabase SQL Editor
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: إصلاح خطأ 405 عند إرسال رسالة محادثة
+
+Work Log:
+- قراءة ChatApp.tsx و supabase.ts لتحليل مشكلة 405
+- اختبر CORS على HF Router API: النتيجة CORS مدعوم (access-control-allow-origin: *)
+- اكتشف السبب الحقيقي: جدول site_settings في Supabase يحتوي قيم خاطئة
+  - hf_space_url = 'https://your-space.hf.space' (قيمة وهمية!)
+  - hf_api_path = '/api/predict' (مسار Gradio، ليس OpenAI API!)
+- أنشأ fix_site_settings.sql لتحديث القيم الصحيحة في Supabase
+- حسّن loadSettings() لاكتشاف القيم الوهمية والاستبدال بالقيم الافتراضية الصحيحة
+- بناء ناجح ورفع إلى GitHub (commit 9a83337)
+
+Stage Summary:
+- السبب: القيم الخاطئة في Supabase site_settings تجعل التطبيق يرسل الطلب إلى URL وهمي
+- الإصلاح في الكود: اكتشاف القيم الوهمية تلقائياً واستبدالها
+- يحتاج تطبيق SQL script يدوياً في Supabase SQL Editor
