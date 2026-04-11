@@ -22,9 +22,22 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedModel, setSelectedModel] = useState(DEFAULT_SETTINGS.hf_model);
+  const [showModelMenu, setShowModelMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close model menu on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
+        setShowModelMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   // Load site settings
   useEffect(() => {
@@ -38,10 +51,12 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
 
   // Check Supabase connection and load sessions
   useEffect(() => {
+    let cancelled = false;
     async function checkConnection() {
-      if (!supabase) { setDbStatus("disconnected"); return; }
+      if (!supabase) { if (!cancelled) setDbStatus("disconnected"); return; }
       try {
         const { error: err } = await supabase!.from("ai_chat_messages").select("id").limit(1);
+        if (cancelled) return;
         if (err) { setDbStatus("disconnected"); }
         else {
           setDbStatus("connected");
@@ -54,13 +69,14 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
                 .eq("user_id", user!.id)
                 .order("created_at", { ascending: false })
                 .limit(50);
-              if (!err2 && data) setSessions(data as ChatSession[]);
+              if (!cancelled && !err2 && data) setSessions(data as ChatSession[]);
             } catch {}
           }
         }
-      } catch { setDbStatus("disconnected"); }
+      } catch { if (!cancelled) setDbStatus("disconnected"); }
     }
     checkConnection();
+    return () => { cancelled = true; };
   }, [user]);
 
   async function createNewSession(firstMessage: string) {
@@ -96,11 +112,121 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
   // Build conversation history for the API
   const buildChatMessages = (currentMessages: Message[], newUserMsg: string) => {
     const history = currentMessages
-      .filter((m) => !m.content.startsWith("❌"))
-      .slice(-20) // Last 20 messages for context
+      .filter((m) => !m.content.startsWith("\u274C")) // Remove error messages
+      .slice(-20) // Last 20 messages for context window
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
     history.push({ role: "user", content: newUserMsg });
     return history;
+  };
+
+  // FIXED: Extract streaming logic into reusable function
+  const fetchStreamingResponse = async (
+    chatMessages: { role: string; content: string }[],
+    controller: AbortController,
+    onChunk: (content: string) => void,
+    onComplete: (content: string) => void,
+    onError: (error: string) => void
+  ) => {
+    const spaceUrl = siteSettings.hf_space_url;
+    const apiPath = siteSettings.hf_api_path;
+    const apiToken = siteSettings.hf_api_token;
+    const model = selectedModel;
+
+    try {
+      const response = await fetch(`${spaceUrl}${apiPath}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: chatMessages,
+          max_tokens: 2048,
+          temperature: 0.7,
+          stream: true,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        throw new Error(`API error: ${response.status} - ${errText.slice(0, 200)}`);
+      }
+
+      let assistantContent = "";
+      const contentType = response.headers.get("content-type") || "";
+
+      if (contentType.includes("text/event-stream")) {
+        // SSE format: data: {...}\n\n
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (reader) {
+          let buffer = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split("\n");
+            // Keep the last incomplete line in the buffer
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const trimmedLine = line.trim();
+              if (!trimmedLine.startsWith("data: ")) continue;
+              const jsonStr = trimmedLine.slice(6).trim();
+              if (jsonStr === "[DONE]") continue;
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const delta = parsed.choices?.[0]?.delta?.content || "";
+                if (delta) {
+                  assistantContent += delta;
+                  onChunk(assistantContent);
+                }
+              } catch {}
+            }
+          }
+
+          // FIXED: Process remaining buffer content
+          if (buffer.trim().startsWith("data: ")) {
+            const jsonStr = buffer.trim().slice(6).trim();
+            if (jsonStr !== "[DONE]") {
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const delta = parsed.choices?.[0]?.delta?.content || "";
+                if (delta) {
+                  assistantContent += delta;
+                  onChunk(assistantContent);
+                }
+              } catch {}
+            }
+          }
+        }
+      } else {
+        // Regular JSON response (fallback)
+        const data = await response.json();
+        if (data.choices && Array.isArray(data.choices)) {
+          assistantContent = data.choices[0]?.message?.content || data.choices[0]?.text || "";
+        } else if (data.data && Array.isArray(data.data)) {
+          assistantContent = data.data[0];
+        } else if (typeof data.data === "string") {
+          assistantContent = data.data;
+        } else if (data.output) {
+          assistantContent = data.output;
+        } else {
+          assistantContent = JSON.stringify(data);
+        }
+        onChunk(assistantContent);
+      }
+
+      onComplete(assistantContent);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      const errorMessage = err instanceof Error ? err.message : "حدث خطأ غير معروف";
+      onError(errorMessage);
+    }
   };
 
   const sendMessage = async () => {
@@ -124,149 +250,99 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    const assistantId = (Date.now() + 1).toString();
 
-    const spaceUrl = siteSettings.hf_space_url;
-    const apiPath = siteSettings.hf_api_path;
-    const apiToken = siteSettings.hf_api_token;
-    const model = selectedModel;
+    // Add empty assistant message for streaming
+    setMessages((prev) => [...prev, { role: "assistant", content: "", id: assistantId }]);
 
-    try {
-      const chatMessages = buildChatMessages(messages, trimmed);
+    const chatMessages = buildChatMessages(messages, trimmed);
 
-      const response = await fetch(`${spaceUrl}${apiPath}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: chatMessages,
-          max_tokens: 2048,
-          temperature: 0.7,
-          stream: true,
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        const errText = await response.text().catch(() => "");
-        throw new Error(`API error: ${response.status} - ${errText.slice(0, 200)}`);
-      }
-
-      // Try SSE streaming
-      let assistantContent = "";
-      const contentType = response.headers.get("content-type") || "";
-
-      if (contentType.includes("text/event-stream")) {
-        // SSE format: data: {...}\n\n
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        const assistantId = (Date.now() + 1).toString();
-        setMessages((prev) => [...prev, { role: "assistant", content: "", id: assistantId }]);
-
-        if (reader) {
-          let buffer = "";
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              if (!line.startsWith("data: ")) continue;
-              const jsonStr = line.slice(6).trim();
-              if (jsonStr === "[DONE]") continue;
-              try {
-                const parsed = JSON.parse(jsonStr);
-                const delta = parsed.choices?.[0]?.delta?.content || "";
-                if (delta) {
-                  assistantContent += delta;
-                  setMessages((prev) =>
-                    prev.map((m) => m.id === assistantId ? { ...m, content: assistantContent } : m)
-                  );
-                }
-              } catch {}
-            }
-          }
+    await fetchStreamingResponse(
+      chatMessages,
+      controller,
+      // onChunk - update streaming content
+      (content) => {
+        setMessages((prev) =>
+          prev.map((m) => m.id === assistantId ? { ...m, content } : m)
+        );
+      },
+      // onComplete - save to DB
+      (content) => {
+        if (sessionId && content) {
+          supabase?.from("ai_chat_messages").insert({
+            project_id: sessionId,
+            role: "assistant",
+            content: content,
+          });
         }
-      } else {
-        // Regular JSON response
-        const data = await response.json();
-        if (data.choices && Array.isArray(data.choices)) {
-          assistantContent = data.choices[0]?.message?.content || data.choices[0]?.text || "";
-        } else if (data.data && Array.isArray(data.data)) {
-          assistantContent = data.data[0];
-        } else if (typeof data.data === "string") {
-          assistantContent = data.data;
-        } else if (data.output) {
-          assistantContent = data.output;
-        } else {
-          assistantContent = JSON.stringify(data);
-        }
-        const assistantMessage: Message = { role: "assistant", content: assistantContent, id: (Date.now() + 1).toString() };
-        setMessages((prev) => [...prev, assistantMessage]);
+        setIsLoading(false);
+        abortControllerRef.current = null;
+        inputRef.current?.focus();
+      },
+      // onError
+      (errorMessage) => {
+        setError(errorMessage);
+        setMessages((prev) =>
+          prev.map((m) => m.id === assistantId ? { ...m, content: `\u274C ${errorMessage}` } : m)
+        );
+        setIsLoading(false);
+        abortControllerRef.current = null;
       }
-
-      // Save assistant message to DB
-      if (sessionId && assistantContent) {
-        await supabase?.from("ai_chat_messages").insert({
-          project_id: sessionId,
-          role: "assistant",
-          content: assistantContent,
-        });
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      const errorMessage = err instanceof Error ? err.message : "حدث خطأ غير معروف";
-      setError(errorMessage);
-      const assistantMessage: Message = { role: "assistant", content: `❌ ${errorMessage}`, id: (Date.now() + 1).toString() };
-      setMessages((prev) => [...prev, assistantMessage]);
-    } finally {
-      setIsLoading(false);
-      abortControllerRef.current = null;
-      inputRef.current?.focus();
-    }
+    );
   };
 
+  // FIXED: retryLastMessage now uses streaming
   const retryLastMessage = async () => {
     const lastUserIdx = [...messages].map((m, i) => m.role === "user" ? i : -1).filter(i => i >= 0).pop();
     if (lastUserIdx === undefined) return;
     const lastUserMsg = messages[lastUserIdx];
-    setMessages((prev) => prev.slice(0, lastUserIdx));
-    setInput(lastUserMsg.content);
-    setTimeout(() => {
-      const trimmed = lastUserMsg.content.trim();
-      if (!trimmed) return;
-      setError(null);
-      setMessages((prev) => [...prev, { role: "user", content: trimmed, id: Date.now().toString() }]);
-      setInput("");
-      setIsLoading(true);
-      // Re-send
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-      const chatMessages = messages.slice(0, lastUserIdx).filter(m => !m.content.startsWith("❌")).map(m => ({ role: m.role, content: m.content }));
-      chatMessages.push({ role: "user", content: trimmed });
-      fetch(`${siteSettings.hf_space_url}${siteSettings.hf_api_path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(siteSettings.hf_api_token ? { Authorization: `Bearer ${siteSettings.hf_api_token}` } : {}) },
-        body: JSON.stringify({ model: selectedModel, messages: chatMessages, max_tokens: 2048, temperature: 0.7 }),
-        signal: controller.signal,
-      })
-      .then(r => r.json())
-      .then(data => {
-        let content = "";
-        if (data.choices?.[0]?.message?.content) content = data.choices[0].message.content;
-        else if (data.data?.[0]) content = data.data[0];
-        else content = JSON.stringify(data);
-        setMessages(prev => [...prev, { role: "assistant", content, id: (Date.now()+1).toString() }]);
-        if (currentSessionId) supabase?.from("ai_chat_messages").insert([{ project_id: currentSessionId, role: "user", content: trimmed }, { project_id: currentSessionId, role: "assistant", content }]);
-      })
-      .catch(err => { if (!(err instanceof DOMException && err.name === "AbortError")) setError(err.message); })
-      .finally(() => { setIsLoading(false); abortControllerRef.current = null; });
-    }, 100);
+
+    // Remove messages after and including the last user message
+    const priorMessages = messages.slice(0, lastUserIdx);
+    setMessages(priorMessages);
+    setError(null);
+    setIsLoading(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const assistantId = (Date.now() + 1).toString();
+
+    // Re-add the user message and empty assistant
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: lastUserMsg.content, id: Date.now().toString() },
+      { role: "assistant", content: "", id: assistantId },
+    ]);
+
+    const chatMessages = buildChatMessages(priorMessages, lastUserMsg.content);
+
+    await fetchStreamingResponse(
+      chatMessages,
+      controller,
+      (content) => {
+        setMessages((prev) =>
+          prev.map((m) => m.id === assistantId ? { ...m, content } : m)
+        );
+      },
+      (content) => {
+        if (currentSessionId && content) {
+          supabase?.from("ai_chat_messages").insert([
+            { project_id: currentSessionId, role: "user", content: lastUserMsg.content },
+            { project_id: currentSessionId, role: "assistant", content },
+          ]);
+        }
+        setIsLoading(false);
+        abortControllerRef.current = null;
+      },
+      (errorMessage) => {
+        setError(errorMessage);
+        setMessages((prev) =>
+          prev.map((m) => m.id === assistantId ? { ...m, content: `\u274C ${errorMessage}` } : m)
+        );
+        setIsLoading(false);
+        abortControllerRef.current = null;
+      }
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -312,6 +388,10 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
   const filteredSessions = searchQuery ? sessions.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase())) : sessions;
   const statusColor = { checking: "bg-yellow-400", connected: "bg-emerald-400", disconnected: "bg-red-400" };
   const statusText = { checking: "جاري الفحص...", connected: "متصل", disconnected: "غير متصل" };
+
+  // FIXED: Helper to check if a message is an error
+  const isError = (msg: Message) => msg.role === "assistant" && msg.content.startsWith("\u274C");
+  const isLastMessage = (index: number) => index === messages.length - 1;
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 transition-colors duration-300">
@@ -392,38 +472,47 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
-            {/* Model selector dropdown */}
-            <div className="relative group">
-              <button className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="اختيار النموذج">
+            {/* FIXED: Model selector dropdown - uses click instead of hover for mobile */}
+            <div className="relative" ref={modelMenuRef}>
+              <button
+                onClick={() => setShowModelMenu(!showModelMenu)}
+                className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="اختيار النموذج"
+              >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
               </button>
-              <div className="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-                <div className="p-2 border-b border-slate-200 dark:border-slate-700">
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 px-2">اختر النموذج</p>
+              {showModelMenu && (
+                <div className="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50">
+                  <div className="p-2 border-b border-slate-200 dark:border-slate-700">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 px-2">اختر النموذج</p>
+                  </div>
+                  <div className="p-1 max-h-64 overflow-y-auto">
+                    {AVAILABLE_MODELS.map((model) => (
+                      <button key={model.id} onClick={() => { setSelectedModel(model.id); setShowModelMenu(false); }} className={`w-full text-right px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${selectedModel === model.id ? "bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300" : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"}`}>
+                        <div>
+                          <p className="font-medium">{model.name}</p>
+                          <p className="text-[10px] text-slate-400">{model.desc}</p>
+                        </div>
+                        {selectedModel === model.id && <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="p-1 max-h-64 overflow-y-auto">
-                  {AVAILABLE_MODELS.map((model) => (
-                    <button key={model.id} onClick={() => setSelectedModel(model.id)} className={`w-full text-right px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${selectedModel === model.id ? "bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300" : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"}`}>
-                      <div>
-                        <p className="font-medium">{model.name}</p>
-                        <p className="text-[10px] text-slate-400">{model.desc}</p>
-                      </div>
-                      {selectedModel === model.id && <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              )}
             </div>
             {isAdmin && (
               <button onClick={onAdminClick} className="p-2 rounded-lg text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors" title="لوحة التحكم">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
               </button>
             )}
+            <button onClick={() => setShowConfig(!showConfig)} className={`p-2 rounded-lg transition-colors ${showConfig ? "text-orange-500 bg-orange-50 dark:bg-orange-900/20" : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"}`} title="معلومات الاتصال">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </button>
             <button onClick={exportChat} disabled={messages.length === 0} className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-30" title="تصدير المحادثة">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             </button>
             <button onClick={clearChat} className="p-2 rounded-lg text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="مسح المحادثة">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M4 7h16" /></svg>
             </button>
             <button onClick={signOut} className="p-2 rounded-lg text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="تسجيل الخروج">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
@@ -436,7 +525,7 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
           <div className="px-4 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3">
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-500 dark:text-slate-400">HF Space</span>
+                <span className="text-slate-500 dark:text-slate-400">HF API</span>
                 <p className="text-slate-700 dark:text-slate-300 truncate mt-0.5" dir="ltr">{siteSettings.hf_space_url}</p>
               </div>
               <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
@@ -453,7 +542,7 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white text-3xl font-bold mb-6 shadow-xl shadow-orange-500/20">HF</div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">مرحباً بك في {siteSettings.site_name}</h2>
-              <p className="text-slate-500 dark:text-slate-400 max-w-md mb-3">تحدث مع نماذج الذكاء الاصطناعي عبر Hugging Face Spaces بسرعة وسهولة.</p>
+              <p className="text-slate-500 dark:text-slate-400 max-w-md mb-3">تحدث مع نماذج الذكاء الاصطناعي عبر Hugging Face Inference API بسرعة وسهولة.</p>
               <p className="text-xs text-orange-500 mb-6">النموذج الحالي: {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel.split("/").pop()}</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg w-full">
                 {["اشرح لي مفهوم الذكاء الاصطناعي", "اكتب كود Python", "ترجم هذا النص للعربية"].map((suggestion) => (
@@ -467,16 +556,20 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
 
           {messages.map((message, index) => (
             <div key={message.id || index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-lg shadow-orange-500/20" : "bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 shadow-sm"}`}>
+              <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-lg shadow-orange-500/20" : isError(message) ? "bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800" : "bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 shadow-sm"}`}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className={`text-xs font-semibold ${message.role === "user" ? "text-orange-100" : "text-orange-500"}`}>{message.role === "user" ? "أنت" : "AI"}</span>
-                  {message.role === "assistant" && message.content && !message.content.startsWith("❌") && (
+                  <span className={`text-xs font-semibold ${message.role === "user" ? "text-orange-100" : isError(message) ? "text-red-500" : "text-orange-500"}`}>{message.role === "user" ? "أنت" : "AI"}</span>
+                  {message.role === "assistant" && message.content && (
                     <div className="flex items-center gap-1">
-                      <button onClick={() => navigator.clipboard.writeText(message.content)} className="p-1 rounded text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors" title="نسخ">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                      </button>
-                      {message.content.startsWith("❌") && index === messages.length - 1 && (
-                        <button onClick={retryLastMessage} className="p-1 rounded text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors" title="إعادة المحاولة">
+                      {/* FIXED: Copy button shows for all non-error assistant messages */}
+                      {!isError(message) && (
+                        <button onClick={() => navigator.clipboard.writeText(message.content)} className="p-1 rounded text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors" title="نسخ">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        </button>
+                      )}
+                      {/* FIXED: Retry button now shows for error messages (was inside wrong condition) */}
+                      {isError(message) && isLastMessage(index) && (
+                        <button onClick={retryLastMessage} className="p-1 rounded text-red-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors" title="إعادة المحاولة">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         </button>
                       )}
@@ -488,7 +581,7 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
             </div>
           ))}
 
-          {isLoading && (
+          {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
             <div className="flex justify-start">
               <div className="bg-white dark:bg-slate-800 rounded-2xl px-4 py-3 border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="flex items-center gap-3">
@@ -539,16 +632,22 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
   );
 }
 
-// Theme Toggle Component
+// Theme Toggle Component - FOUC prevented by inline script in layout.tsx
 function ThemeToggle() {
-  const [dark, setDark] = useState(false);
+  // Initialize dark state from DOM class (set by inline script before paint)
+  const [dark, setDark] = useState(() => {
+    if (typeof window !== "undefined") {
+      return document.documentElement.classList.contains("dark");
+    }
+    return false;
+  });
 
   useEffect(() => {
-    const saved = localStorage.getItem("hf_theme");
-    if (saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-      setDark(true);
+    // Ensure DOM stays in sync with initial state
+    if (dark) {
       document.documentElement.classList.add("dark");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleTheme = () => {

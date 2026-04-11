@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, startTransition } from "react";
 import { useAuth } from "./AuthProvider";
 import { loadSettings, saveSettings, DEFAULT_SETTINGS, supabase, isSupabaseConfigured, checkProfilesTable } from "@/lib/supabase";
 import type { SiteSettingKey, UserProfile, DashboardStats } from "@/lib/types";
@@ -20,6 +20,22 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [stats, setStats] = useState<DashboardStats>({ totalUsers: 0, totalSessions: 0, totalMessages: 0, todayMessages: 0, activeUsers: 0 });
+  // Initialize from DOM (set by inline script in layout.tsx before paint)
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== "undefined") {
+      return document.documentElement.classList.contains("dark");
+    }
+    return false;
+  });
+
+  // Sync with global dark mode via MutationObserver
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains("dark"));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
   const tabs: AdminTab[] = [
     {
@@ -75,17 +91,8 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
     return () => { mounted = false; };
   }, []);
 
-  // Load users and stats when tab changes
-  useEffect(() => {
-    if (activeTab === "users" && supabase) {
-      loadUsers();
-    }
-    if (activeTab === "overview" && supabase) {
-      loadStats();
-    }
-  }, [activeTab]);
-
-  async function loadUsers() {
+  // Load users and stats
+  const loadUsers = useCallback(async () => {
     if (!supabase) return;
     try {
       const profilesExist = await checkProfilesTable();
@@ -94,9 +101,9 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
         if (data) setUsers(data as UserProfile[]);
       }
     } catch {}
-  }
+  }, []);
 
-  async function loadStats() {
+  const loadStats = useCallback(async () => {
     if (!supabase) return;
     try {
       const [usersRes, sessionsRes, messagesRes, todayRes] = await Promise.all([
@@ -114,7 +121,17 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
         activeUsers: usersRes.count || 0,
       });
     } catch {}
-  }
+  }, []);
+
+  // Load users and stats when tab changes
+  useEffect(() => {
+    if (activeTab === "users" && supabase) {
+      startTransition(() => { loadUsers(); });
+    }
+    if (activeTab === "overview" && supabase) {
+      startTransition(() => { loadStats(); });
+    }
+  }, [activeTab, loadUsers, loadStats]);
 
   async function updateUserRole(userId: string, newRole: "admin" | "user") {
     if (!supabase) return;
@@ -145,10 +162,18 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
+  // Toggle theme
+  const toggleTheme = () => {
+    const newDark = !isDark;
+    setIsDark(newDark);
+    if (newDark) { document.documentElement.classList.add("dark"); localStorage.setItem("hf_theme", "dark"); }
+    else { document.documentElement.classList.remove("dark"); localStorage.setItem("hf_theme", "light"); }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-950" dir="rtl">
-        <div className="flex items-center gap-3 text-slate-400">
+      <div className={`flex items-center justify-center h-screen ${isDark ? "bg-slate-950" : "bg-slate-50"}`} dir="rtl">
+        <div className={`flex items-center gap-3 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
           <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -160,17 +185,17 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="flex h-screen bg-slate-950" dir="rtl">
+    <div className={`flex h-screen ${isDark ? "bg-slate-950" : "bg-slate-50"}`} dir="rtl">
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 border-l border-slate-800 flex flex-col">
-        <div className="p-5 border-b border-slate-800">
+      <aside className={`w-64 ${isDark ? "bg-slate-900 border-l border-slate-800" : "bg-white border-l border-slate-200"} flex flex-col`}>
+        <div className={`p-5 border-b ${isDark ? "border-slate-800" : "border-slate-200"}`}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-orange-500/20">
               HF
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">لوحة التحكم</h2>
-              <p className="text-xs text-slate-500">{user?.email}</p>
+              <h2 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>لوحة التحكم</h2>
+              <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>{user?.email}</p>
             </div>
           </div>
         </div>
@@ -183,7 +208,9 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                 activeTab === tab.id
                   ? "bg-orange-500/10 text-orange-400"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800"
+                  : isDark
+                    ? "text-slate-400 hover:text-white hover:bg-slate-800"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
               {tab.icon}
@@ -192,10 +219,26 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
           ))}
         </nav>
 
-        <div className="p-3 border-t border-slate-800 space-y-2">
+        <div className={`p-3 border-t ${isDark ? "border-slate-800" : "border-slate-200"} space-y-2`}>
+          {/* Theme toggle in admin */}
+          <button
+            onClick={toggleTheme}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+              isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+          >
+            {isDark ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+            )}
+            {isDark ? "الوضع الفاتح" : "الوضع المظلم"}
+          </button>
           <button
             onClick={onClose}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+              isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+            }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -227,58 +270,45 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
           {activeTab === "overview" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">نظرة عامة</h3>
-                <p className="text-sm text-slate-500">إحصائيات الاستخدام والحالة العامة</p>
+                <h3 className={`text-lg font-bold ${isDark ? "text-white" : "text-slate-900"} mb-1`}>نظرة عامة</h3>
+                <p className={`text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}>إحصائيات الاستخدام والحالة العامة</p>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard title="المستخدمين" value={stats.totalUsers} icon="👥" color="blue" />
-                <StatCard title="المحادثات" value={stats.totalSessions} icon="💬" color="emerald" />
-                <StatCard title="الرسائل" value={stats.totalMessages} icon="✉️" color="orange" />
-                <StatCard title="رسائل اليوم" value={stats.todayMessages} icon="📊" color="purple" />
+                <StatCard title="المستخدمين" value={stats.totalUsers} icon="2" color="blue" isDark={isDark} />
+                <StatCard title="المحادثات" value={stats.totalSessions} icon="3" color="emerald" isDark={isDark} />
+                <StatCard title="الرسائل" value={stats.totalMessages} icon="4" color="orange" isDark={isDark} />
+                <StatCard title="رسائل اليوم" value={stats.todayMessages} icon="5" color="purple" isDark={isDark} />
               </div>
 
               {/* Quick Actions */}
-              <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
-                <h4 className="text-sm font-semibold text-white mb-3">إجراءات سريعة</h4>
+              <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border p-5`}>
+                <h4 className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"} mb-3`}>إجراءات سريعة</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <button
-                    onClick={() => setActiveTab("users")}
-                    className="px-4 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-colors text-center"
-                  >
+                  <button onClick={() => setActiveTab("users")} className={`px-4 py-3 rounded-lg ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"} text-sm transition-colors text-center`}>
                     إدارة المستخدمين
                   </button>
-                  <button
-                    onClick={() => setActiveTab("settings")}
-                    className="px-4 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-colors text-center"
-                  >
+                  <button onClick={() => setActiveTab("settings")} className={`px-4 py-3 rounded-lg ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"} text-sm transition-colors text-center`}>
                     إعدادات الموقع
                   </button>
-                  <button
-                    onClick={() => setActiveTab("ads")}
-                    className="px-4 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-colors text-center"
-                  >
+                  <button onClick={() => setActiveTab("ads")} className={`px-4 py-3 rounded-lg ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"} text-sm transition-colors text-center`}>
                     إدارة الإعلانات
                   </button>
-                  <a
-                    href="https://supabase.com/dashboard/project/ucmpclgctjeyoimtmqir"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-colors text-center block"
-                  >
+                  <a href="https://supabase.com/dashboard/project/ucmpclgctjeyoimtmqir" target="_blank" rel="noopener noreferrer" className={`px-4 py-3 rounded-lg ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"} text-sm transition-colors text-center block`}>
                     Supabase Dashboard
                   </a>
                 </div>
               </div>
 
               {/* System Status */}
-              <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
-                <h4 className="text-sm font-semibold text-white mb-3">حالة النظام</h4>
+              <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border p-5`}>
+                <h4 className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"} mb-3`}>حالة النظام</h4>
                 <div className="space-y-3">
-                  <StatusRow label="Supabase" status={isSupabaseConfigured ? "connected" : "disconnected"} />
-                  <StatusRow label="HF Space API" status={settings.hf_space_url !== "https://your-space.hf.space" ? "connected" : "warning"} />
-                  <StatusRow label="AdSense" status={settings.adsense_enabled === "true" ? "connected" : "inactive"} />
-                  <StatusRow label="AdMob" status={settings.admob_enabled === "true" ? "connected" : "inactive"} />
+                  <StatusRow label="Supabase" status={isSupabaseConfigured ? "connected" : "disconnected"} isDark={isDark} />
+                  <StatusRow label="HF Inference API" status={settings.hf_space_url !== "https://your-space.hf.space" ? "connected" : "warning"} isDark={isDark} />
+                  <StatusRow label="HF API Token" status={settings.hf_api_token ? "connected" : "warning"} isDark={isDark} />
+                  <StatusRow label="AdSense" status={settings.adsense_enabled === "true" ? "connected" : "inactive"} isDark={isDark} />
+                  <StatusRow label="AdMob" status={settings.admob_enabled === "true" ? "connected" : "inactive"} isDark={isDark} />
                 </div>
               </div>
             </div>
@@ -288,61 +318,64 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
           {activeTab === "settings" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">الإعدادات العامة</h3>
-                <p className="text-sm text-slate-500">إعدادات الموقع والاتصال الأساسية</p>
+                <h3 className={`text-lg font-bold ${isDark ? "text-white" : "text-slate-900"} mb-1`}>الإعدادات العامة</h3>
+                <p className={`text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}>إعدادات الموقع والاتصال الأساسية</p>
               </div>
 
-              <div className="bg-slate-900 rounded-xl border border-slate-800 p-5 space-y-5">
+              <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border p-5 space-y-5`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1.5">اسم الموقع</label>
+                    <label className={`block text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"} mb-1.5`}>اسم الموقع</label>
                     <input type="text" value={settings.site_name} onChange={(e) => updateSetting("site_name", e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                      className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-slate-50 text-slate-900"} focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm`} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1.5">بريد المسؤولين (مفصول بفواصل)</label>
+                    <label className={`block text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"} mb-1.5`}>بريد المسؤولين (مفصول بفواصل)</label>
                     <input type="text" value={settings.admin_emails} onChange={(e) => updateSetting("admin_emails", e.target.value)}
                       placeholder="admin@example.com" dir="ltr"
-                      className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                      className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-slate-50 text-slate-900"} focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm`} />
                   </div>
                 </div>
 
                 {/* HF API Section */}
-                <div className="border-t border-slate-800 pt-5">
+                <div className={`border-t ${isDark ? "border-slate-800" : "border-slate-200"} pt-5`}>
                   <h4 className="text-sm font-semibold text-orange-400 mb-3 flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                    Hugging Face API
+                    Hugging Face Inference API
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">رابط HF Space</label>
+                      <label className={`block text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"} mb-1.5`}>رابط HF API</label>
                       <input type="url" value={settings.hf_space_url} onChange={(e) => updateSetting("hf_space_url", e.target.value)}
-                        dir="ltr" className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                        dir="ltr" className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-slate-50 text-slate-900"} focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm`} />
+                      <p className="text-[10px] text-slate-500 mt-1" dir="ltr">https://api-inference.huggingface.co</p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">مسار API</label>
+                      <label className={`block text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"} mb-1.5`}>مسار API</label>
                       <input type="text" value={settings.hf_api_path} onChange={(e) => updateSetting("hf_api_path", e.target.value)}
-                        dir="ltr" className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                        dir="ltr" className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-slate-50 text-slate-900"} focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm`} />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">HF API Token</label>
+                      <label className={`block text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"} mb-1.5`}>HF API Token</label>
                       <input type="password" value={settings.hf_api_token} onChange={(e) => updateSetting("hf_api_token", e.target.value)}
                         placeholder="hf_..." dir="ltr"
-                        className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                        className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-slate-50 text-slate-900"} focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm`} />
                       <p className="text-[10px] text-slate-500 mt-1">من huggingface.co/settings/tokens</p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">النموذج الافتراضي</label>
+                      <label className={`block text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"} mb-1.5`}>النموذج الافتراضي</label>
                       <select value={settings.hf_model} onChange={(e) => updateSetting("hf_model", e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm">
-                        <option value="HuggingFaceTB/SmolLM2-1.7B-Instruct">SmolLM2 1.7B (سريع)</option>
-                        <option value="meta-llama/Llama-3.2-3B-Instruct">Llama 3.2 3B (متوازن)</option>
-                        <option value="mistralai/Mistral-7B-Instruct-v0.3">Mistral 7B (قوي)</option>
-                        <option value="google/gemma-2-2b-it">Gemma 2 2B (جوجل)</option>
-                        <option value="Qwen/Qwen2.5-3B-Instruct">Qwen 2.5 3B (متعدد اللغات)</option>
-                        <option value="microsoft/Phi-3.5-mini-instruct">Phi 3.5 Mini (مايكروسوفت)</option>
+                        className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-slate-50 text-slate-900"} focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm`}>
+                        <option value="meta-llama/Llama-3.2-1B-Instruct">Llama 3.2 1B (سريع ومجاني)</option>
+                        <option value="Qwen/Qwen3-8B">Qwen3 8B (متوازن ومجاني)</option>
+                        <option value="meta-llama/Llama-3.1-8B-Instruct">Llama 3.1 8B (رخيص)</option>
+                        <option value="Qwen/Qwen2.5-Coder-7B-Instruct">Qwen Coder 7B (برمجة)</option>
+                        <option value="Qwen/Qwen3-4B-Instruct-2507">Qwen3 4B (سريع)</option>
+                        <option value="deepseek-ai/DeepSeek-R1-Distill-Qwen-7B">DeepSeek R1 7B (استدلال)</option>
+                        <option value="google/gemma-3n-E4B-it">Gemma 3n E4B (جوجل)</option>
+                        <option value="Qwen/Qwen3-14B">Qwen3 14B (قوي)</option>
                       </select>
                     </div>
                   </div>
@@ -360,37 +393,37 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
           {activeTab === "users" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">إدارة المستخدمين</h3>
-                <p className="text-sm text-slate-500">عرض وإدارة المستخدمين المسجلين</p>
+                <h3 className={`text-lg font-bold ${isDark ? "text-white" : "text-slate-900"} mb-1`}>إدارة المستخدمين</h3>
+                <p className={`text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}>عرض وإدارة المستخدمين المسجلين</p>
               </div>
 
               {users.length === 0 ? (
-                <div className="bg-slate-900 rounded-xl border border-slate-800 p-8 text-center">
-                  <p className="text-slate-500">لا يوجد مستخدمين مسجلين</p>
+                <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border p-8 text-center`}>
+                  <p className={isDark ? "text-slate-500" : "text-slate-400"}>لا يوجد مستخدمين مسجلين</p>
                 </div>
               ) : (
-                <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+                <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border overflow-hidden`}>
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-800">
-                        <th className="text-right px-4 py-3 text-slate-400 font-medium">البريد الإلكتروني</th>
-                        <th className="text-right px-4 py-3 text-slate-400 font-medium">الدور</th>
-                        <th className="text-right px-4 py-3 text-slate-400 font-medium">تاريخ التسجيل</th>
-                        <th className="text-right px-4 py-3 text-slate-400 font-medium">إجراءات</th>
+                      <tr className={`border-b ${isDark ? "border-slate-800" : "border-slate-200"}`}>
+                        <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>البريد الإلكتروني</th>
+                        <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>الدور</th>
+                        <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>تاريخ التسجيل</th>
+                        <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>إجراءات</th>
                       </tr>
                     </thead>
                     <tbody>
                       {users.map((u) => (
-                        <tr key={u.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                          <td className="px-4 py-3 text-white" dir="ltr">{u.email}</td>
+                        <tr key={u.id} className={`border-b ${isDark ? "border-slate-800/50 hover:bg-slate-800/30" : "border-slate-100 hover:bg-slate-50"}`}>
+                          <td className={`px-4 py-3 ${isDark ? "text-white" : "text-slate-900"}`} dir="ltr">{u.email}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              u.role === "admin" ? "bg-orange-500/20 text-orange-400" : "bg-slate-700 text-slate-300"
+                              u.role === "admin" ? "bg-orange-500/20 text-orange-400" : isDark ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-600"
                             }`}>
                               {u.role === "admin" ? "مسؤول" : "مستخدم"}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-slate-400 text-xs" dir="ltr">
+                          <td className={`px-4 py-3 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`} dir="ltr">
                             {new Date(u.created_at).toLocaleDateString("ar-SA")}
                           </td>
                           <td className="px-4 py-3">
@@ -398,7 +431,7 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
                               onClick={() => updateUserRole(u.id, u.role === "admin" ? "user" : "admin")}
                               className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                                 u.role === "admin"
-                                  ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                  ? isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                                   : "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30"
                               }`}
                             >
@@ -414,7 +447,7 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
 
               <button
                 onClick={loadUsers}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-colors"
+                className={`px-4 py-2 rounded-lg ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"} text-sm transition-colors`}
               >
                 تحديث القائمة
               </button>
@@ -425,75 +458,75 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
           {activeTab === "ads" && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">إدارة الإعلانات</h3>
-                <p className="text-sm text-slate-500">إعدادات Google AdSense و AdMob</p>
+                <h3 className={`text-lg font-bold ${isDark ? "text-white" : "text-slate-900"} mb-1`}>إدارة الإعلانات</h3>
+                <p className={`text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}>إعدادات Google AdSense و AdMob</p>
               </div>
 
               {/* AdSense */}
-              <div className="bg-slate-900 rounded-xl border border-slate-800 p-5 space-y-5">
+              <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border p-5 space-y-5`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-blue-600/20 flex items-center justify-center">
                       <svg className="w-5 h-5 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                     </div>
                     <div>
-                      <h4 className="text-sm font-semibold text-white">Google AdSense</h4>
-                      <p className="text-xs text-slate-500">إعلانات الويب</p>
+                      <h4 className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>Google AdSense</h4>
+                      <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>إعلانات الويب</p>
                     </div>
                   </div>
                   <button onClick={() => updateSetting("adsense_enabled", settings.adsense_enabled === "true" ? "false" : "true")}
-                    className={`relative w-14 h-7 rounded-full transition-colors ${settings.adsense_enabled === "true" ? "bg-orange-500" : "bg-slate-700"}`}>
+                    className={`relative w-14 h-7 rounded-full transition-colors ${settings.adsense_enabled === "true" ? "bg-orange-500" : isDark ? "bg-slate-700" : "bg-slate-300"}`}>
                     <span className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${settings.adsense_enabled === "true" ? "right-0.5" : "right-7"}`} />
                   </button>
                 </div>
                 {settings.adsense_enabled === "true" && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">AdSense Client ID</label>
+                      <label className={`block text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"} mb-1.5`}>AdSense Client ID</label>
                       <input type="text" value={settings.adsense_client_id} onChange={(e) => updateSetting("adsense_client_id", e.target.value)}
                         placeholder="ca-pub-XXXXXXXXXXXXXXXX" dir="ltr"
-                        className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                        className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-slate-50 text-slate-900"} focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm`} />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">Ad Slot ID</label>
+                      <label className={`block text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"} mb-1.5`}>Ad Slot ID</label>
                       <input type="text" value={settings.adsense_ad_slot} onChange={(e) => updateSetting("adsense_ad_slot", e.target.value)}
                         placeholder="XXXXXXXXXX" dir="ltr"
-                        className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                        className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-slate-50 text-slate-900"} focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm`} />
                     </div>
                   </div>
                 )}
               </div>
 
               {/* AdMob */}
-              <div className="bg-slate-900 rounded-xl border border-slate-800 p-5 space-y-5">
+              <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border p-5 space-y-5`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-green-600/20 flex items-center justify-center">
                       <svg className="w-5 h-5 text-green-400" viewBox="0 0 24 24" fill="currentColor"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>
                     </div>
                     <div>
-                      <h4 className="text-sm font-semibold text-white">Google AdMob</h4>
-                      <p className="text-xs text-slate-500">إعلانات التطبيقات</p>
+                      <h4 className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>Google AdMob</h4>
+                      <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>إعلانات التطبيقات</p>
                     </div>
                   </div>
                   <button onClick={() => updateSetting("admob_enabled", settings.admob_enabled === "true" ? "false" : "true")}
-                    className={`relative w-14 h-7 rounded-full transition-colors ${settings.admob_enabled === "true" ? "bg-orange-500" : "bg-slate-700"}`}>
+                    className={`relative w-14 h-7 rounded-full transition-colors ${settings.admob_enabled === "true" ? "bg-orange-500" : isDark ? "bg-slate-700" : "bg-slate-300"}`}>
                     <span className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${settings.admob_enabled === "true" ? "right-0.5" : "right-7"}`} />
                   </button>
                 </div>
                 {settings.admob_enabled === "true" && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">AdMob App ID</label>
+                      <label className={`block text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"} mb-1.5`}>AdMob App ID</label>
                       <input type="text" value={settings.admob_app_id} onChange={(e) => updateSetting("admob_app_id", e.target.value)}
                         placeholder="ca-app-pub-XXXX~YYYY" dir="ltr"
-                        className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                        className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-slate-50 text-slate-900"} focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm`} />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">Ad Unit ID</label>
+                      <label className={`block text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"} mb-1.5`}>Ad Unit ID</label>
                       <input type="text" value={settings.admob_ad_unit_id} onChange={(e) => updateSetting("admob_ad_unit_id", e.target.value)}
                         placeholder="ca-app-pub-XXXX/ZZZZ" dir="ltr"
-                        className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                        className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-slate-50 text-slate-900"} focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm`} />
                     </div>
                   </div>
                 )}
@@ -511,42 +544,48 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
   );
 }
 
-// Stat Card Component
-function StatCard({ title, value, icon, color }: { title: string; value: number; icon: string; color: string }) {
-  const colorClasses: Record<string, string> = {
+// Stat Card Component - FIXED: Uses isDark prop instead of hardcoded dark
+function StatCard({ title, value, icon, color, isDark }: { title: string; value: number; icon: string; color: string; isDark: boolean }) {
+  const darkColorClasses: Record<string, string> = {
     blue: "from-blue-500/20 to-blue-600/5 border-blue-500/30",
     emerald: "from-emerald-500/20 to-emerald-600/5 border-emerald-500/30",
     orange: "from-orange-500/20 to-orange-600/5 border-orange-500/30",
     purple: "from-purple-500/20 to-purple-600/5 border-purple-500/30",
   };
+  const lightColorClasses: Record<string, string> = {
+    blue: "from-blue-50 to-blue-100/50 border-blue-200",
+    emerald: "from-emerald-50 to-emerald-100/50 border-emerald-200",
+    orange: "from-orange-50 to-orange-100/50 border-orange-200",
+    purple: "from-purple-50 to-purple-100/50 border-purple-200",
+  };
 
   return (
-    <div className={`bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4`}>
+    <div className={`bg-gradient-to-br ${isDark ? darkColorClasses[color] : lightColorClasses[color]} border rounded-xl p-4`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-2xl">{icon}</span>
       </div>
-      <p className="text-2xl font-bold text-white">{value.toLocaleString("ar-SA")}</p>
-      <p className="text-xs text-slate-400 mt-1">{title}</p>
+      <p className={`text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{value.toLocaleString("ar-SA")}</p>
+      <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"} mt-1`}>{title}</p>
     </div>
   );
 }
 
-// Status Row Component
-function StatusRow({ label, status }: { label: string; status: "connected" | "disconnected" | "warning" | "inactive" }) {
+// Status Row Component - FIXED: Uses isDark prop
+function StatusRow({ label, status, isDark }: { label: string; status: "connected" | "disconnected" | "warning" | "inactive"; isDark: boolean }) {
   const statusConfig = {
     connected: { color: "bg-emerald-400", text: "متصل" },
     disconnected: { color: "bg-red-400", text: "غير متصل" },
     warning: { color: "bg-yellow-400", text: "يحتاج إعداد" },
-    inactive: { color: "bg-slate-600", text: "غير مفعّل" },
+    inactive: { color: isDark ? "bg-slate-600" : "bg-slate-300", text: "غير مفعّل" },
   };
   const config = statusConfig[status];
 
   return (
     <div className="flex items-center justify-between py-2">
-      <span className="text-sm text-slate-300">{label}</span>
+      <span className={`text-sm ${isDark ? "text-slate-300" : "text-slate-700"}`}>{label}</span>
       <div className="flex items-center gap-2">
         <span className={`w-2 h-2 rounded-full ${config.color}`}></span>
-        <span className="text-xs text-slate-400">{config.text}</span>
+        <span className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>{config.text}</span>
       </div>
     </div>
   );

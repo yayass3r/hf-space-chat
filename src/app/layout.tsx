@@ -43,7 +43,22 @@ export default function RootLayout({
     <html lang="ar" className="h-full antialiased" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        {/* Google AdSense Verification & Auto Ads */}
+        {/* FIXED: Inline script to prevent FOUC (Flash of Unstyled Content) for dark mode */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('hf_theme');
+                  if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                  }
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
+        {/* Google AdSense - loaded once here, removed duplicate from AdBanner.tsx */}
         <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2304503997296254"

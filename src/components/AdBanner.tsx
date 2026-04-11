@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { loadSettings } from "@/lib/supabase";
 
 interface AdSettings {
@@ -21,7 +21,6 @@ export default function AdBanner({ position }: { position: "top" | "bottom" | "s
     admob_app_id: "",
     admob_ad_unit_id: "",
   });
-  const adsenseLoadedRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -42,22 +41,8 @@ export default function AdBanner({ position }: { position: "top" | "bottom" | "s
     return () => { mounted = false; };
   }, []);
 
-  // Load AdSense script
-  useEffect(() => {
-    if (!adSettings.adsense_enabled || !adSettings.adsense_client_id || adsenseLoadedRef.current) return;
-
-    const existingScript = document.querySelector('script[src*="pagead2.googlesyndication.com"]');
-    if (!existingScript) {
-      const script = document.createElement("script");
-      script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adSettings.adsense_client_id}`;
-      script.async = true;
-      script.crossOrigin = "anonymous";
-      document.head.appendChild(script);
-    }
-    adsenseLoadedRef.current = true;
-  }, [adSettings.adsense_enabled, adSettings.adsense_client_id]);
-
-  // Push ad
+  // FIXED: Removed duplicate AdSense script loading - it's already in layout.tsx <head>
+  // Only push ad slot to adsbygoogle array
   useEffect(() => {
     if (!adSettings.adsense_enabled || !adSettings.adsense_client_id || !adSettings.adsense_ad_slot) return;
     try {

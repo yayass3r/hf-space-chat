@@ -65,7 +65,7 @@ export async function checkSettingsTable(): Promise<boolean> {
   }
 }
 
-// Site settings with localStorage fallback
+// Site settings - SINGLE SOURCE OF TRUTH (was duplicated in types.ts)
 export interface SiteSettings {
   admin_emails: string;
   adsense_enabled: string;
@@ -81,6 +81,7 @@ export interface SiteSettings {
   hf_model: string;
 }
 
+// FIXED: Updated to use HF Inference API endpoint with the user's token
 export const DEFAULT_SETTINGS: SiteSettings = {
   admin_emails: process.env.NEXT_PUBLIC_ADMIN_EMAILS || "yayass3r@gmail.com",
   adsense_enabled: "true",
@@ -90,20 +91,24 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   admob_app_id: "",
   admob_ad_unit_id: "",
   site_name: "HF Space Chat",
-  hf_space_url: "https://yass3r4099-gemma-4-server.hf.space",
+  // FIXED: Using HF Inference API OpenAI-compatible endpoint
+  hf_space_url: "https://router.huggingface.co",
   hf_api_path: "/v1/chat/completions",
-  hf_api_token: "",  // Set via Admin Dashboard or Supabase
-  hf_model: "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+  // Token loaded from env (NEXT_PUBLIC_HF_API_TOKEN) or set via Admin Dashboard
+  hf_api_token: process.env.NEXT_PUBLIC_HF_API_TOKEN || "",
+  hf_model: "meta-llama/Llama-3.2-1B-Instruct",
 };
 
-// Available models for selection
+// Available models for selection - verified working with HF Router API
 export const AVAILABLE_MODELS = [
-  { id: "HuggingFaceTB/SmolLM2-1.7B-Instruct", name: "SmolLM2 1.7B", desc: "سريع وخفيف" },
-  { id: "meta-llama/Llama-3.2-3B-Instruct", name: "Llama 3.2 3B", desc: "متوازن" },
-  { id: "mistralai/Mistral-7B-Instruct-v0.3", name: "Mistral 7B", desc: "قوي" },
-  { id: "google/gemma-2-2b-it", name: "Gemma 2 2B", desc: "جوجل" },
-  { id: "Qwen/Qwen2.5-3B-Instruct", name: "Qwen 2.5 3B", desc: "متعدد اللغات" },
-  { id: "microsoft/Phi-3.5-mini-instruct", name: "Phi 3.5 Mini", desc: "مايكروسوفت" },
+  { id: "meta-llama/Llama-3.2-1B-Instruct", name: "Llama 3.2 1B", desc: "سريع ومجاني" },
+  { id: "Qwen/Qwen3-8B", name: "Qwen3 8B", desc: "متوازن ومجاني" },
+  { id: "meta-llama/Llama-3.1-8B-Instruct", name: "Llama 3.1 8B", desc: "ميتا - رخيص" },
+  { id: "Qwen/Qwen2.5-Coder-7B-Instruct", name: "Qwen Coder 7B", desc: "برمجة" },
+  { id: "Qwen/Qwen3-4B-Instruct-2507", name: "Qwen3 4B", desc: "سريع" },
+  { id: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", name: "DeepSeek R1 7B", desc: "استدلال عميق" },
+  { id: "google/gemma-3n-E4B-it", name: "Gemma 3n E4B", desc: "جوجل - رخيص" },
+  { id: "Qwen/Qwen3-14B", name: "Qwen3 14B", desc: "قوي" },
 ];
 
 const SETTINGS_KEY = "hf_site_settings";

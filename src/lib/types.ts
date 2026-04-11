@@ -17,37 +17,20 @@ export interface UserProfile {
   created_at: string;
 }
 
-export interface SiteSettings {
-  admin_emails: string;
-  adsense_enabled: string;
-  adsense_client_id: string;
-  adsense_ad_slot: string;
-  admob_enabled: string;
-  admob_app_id: string;
-  admob_ad_unit_id: string;
-  site_name: string;
-  hf_space_url: string;
-  hf_api_path: string;
-  hf_api_token: string;
-  hf_model: string;
-}
-
-export type SiteSettingKey = keyof SiteSettings;
-
-export const DEFAULT_SETTINGS: SiteSettings = {
-  admin_emails: "admin@example.com",
-  adsense_enabled: "true",
-  adsense_client_id: "ca-pub-2304503997296254",
-  adsense_ad_slot: "",
-  admob_enabled: "false",
-  admob_app_id: "",
-  admob_ad_unit_id: "",
-  site_name: "HF Space Chat",
-  hf_space_url: "https://yass3r4099-gemma-4-server.hf.space",
-  hf_api_path: "/v1/chat/completions",
-  hf_api_token: "",  // Set via Admin Dashboard or Supabase
-  hf_model: "HuggingFaceTB/SmolLM2-1.7B-Instruct",
-};
+// SiteSettings is now defined ONLY in supabase.ts to avoid duplication
+export type SiteSettingKey =
+  | "admin_emails"
+  | "adsense_enabled"
+  | "adsense_client_id"
+  | "adsense_ad_slot"
+  | "admob_enabled"
+  | "admob_app_id"
+  | "admob_ad_unit_id"
+  | "site_name"
+  | "hf_space_url"
+  | "hf_api_path"
+  | "hf_api_token"
+  | "hf_model";
 
 export interface DashboardStats {
   totalUsers: number;
