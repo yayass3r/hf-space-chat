@@ -27,7 +27,7 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
     if (!supabase) return;
     async function load() {
       try {
-        const { data } = await supabase.from("site_settings").select("key, value");
+        const { data } = await supabase!.from("site_settings").select("key, value");
         if (data) {
           const s = { ...DEFAULT_SETTINGS };
           data.forEach((item: { key: string; value: string }) => {
@@ -50,7 +50,7 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
         return;
       }
       try {
-        const { error: err } = await supabase.from("ai_chat_messages").select("id").limit(1);
+        const { error: err } = await supabase!.from("ai_chat_messages").select("id").limit(1);
         if (err) {
           setDbStatus("disconnected");
         } else {
@@ -67,11 +67,11 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
   async function loadSessions() {
     if (!supabase || !user) return;
     try {
-      const { data, error: err } = await supabase
+      const { data, error: err } = await supabase!
         .from("projects")
         .select("id, name, created_at")
         .eq("template", "chat")
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(20);
       if (!err && data) {
@@ -84,7 +84,7 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
     if (!supabase || !user) return null;
     try {
       const title = firstMessage.slice(0, 50) + (firstMessage.length > 50 ? "..." : "");
-      const { data, error: err } = await supabase
+      const { data, error: err } = await supabase!
         .from("projects")
         .insert({
           name: title,
@@ -92,7 +92,7 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
           is_public: false,
           is_deployed: false,
           status: "active",
-          user_id: user.id,
+          user_id: user!.id,
         })
         .select("id, name, created_at")
         .single();
@@ -129,7 +129,7 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
       sessionId = await createNewSession(trimmed);
     }
     if (supabase && sessionId) {
-      await supabase.from("ai_chat_messages").insert({
+      await supabase!.from("ai_chat_messages").insert({
         project_id: sessionId,
         role: "user",
         content: trimmed,
@@ -162,8 +162,8 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
       const assistantMessage: Message = { role: "assistant", content: assistantContent };
       setMessages((prev) => [...prev, assistantMessage]);
 
-      if (supabase && sessionId) {
-        await supabase.from("ai_chat_messages").insert({
+      if (sessionId) {
+        await supabase!.from("ai_chat_messages").insert({
           project_id: sessionId,
           role: "assistant",
           content: assistantContent,
@@ -196,7 +196,7 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
   const loadSession = async (sessionId: string) => {
     if (!supabase) return;
     try {
-      const { data, error: err } = await supabase
+      const { data, error: err } = await supabase!
         .from("ai_chat_messages")
         .select("role, content")
         .eq("project_id", sessionId)

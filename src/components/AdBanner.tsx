@@ -30,7 +30,7 @@ export default function AdBanner({ position }: { position: "top" | "bottom" | "s
 
     async function loadAdSettings() {
       try {
-        const { data } = await supabase.from("site_settings").select("key, value");
+        const { data } = await supabase!.from("site_settings").select("key, value");
 
         if (data) {
           const settingsMap: Record<string, string> = {};
