@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ucmpclgctjeyoimtmqir.supabase.co";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjbXBjbGdjdGpleW9pbXRtcWlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5MjI5NjYsImV4cCI6MjA5MTQ5ODk2Nn0.-243x1_Hqnml5smR3aqSUFS8uuglw3f1wSlfqZNcp-k";
 
-// Admin emails - can be configured via env var or localStorage
+// Admin emails
 const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "yayass3r@gmail.com")
   .split(",")
   .map((e) => e.trim().toLowerCase())
@@ -20,11 +20,7 @@ export const isSupabaseConfigured = !!supabase;
 
 export function isAdminEmail(email: string | undefined): boolean {
   if (!email) return false;
-  
-  // Check env var list
   if (ADMIN_EMAILS.includes(email.toLowerCase())) return true;
-  
-  // Check localStorage override
   if (typeof window !== "undefined") {
     try {
       const storedAdminEmails = localStorage.getItem("hf_admin_emails");
@@ -34,7 +30,6 @@ export function isAdminEmail(email: string | undefined): boolean {
       }
     } catch {}
   }
-  
   return false;
 }
 
@@ -44,7 +39,6 @@ let _profilesTableExists: boolean | null = null;
 export async function checkProfilesTable(): Promise<boolean> {
   if (_profilesTableExists !== null) return _profilesTableExists;
   if (!supabase) return false;
-
   try {
     const { error } = await supabase.from("profiles").select("id").limit(1);
     _profilesTableExists = !error;
@@ -61,7 +55,6 @@ let _settingsTableExists: boolean | null = null;
 export async function checkSettingsTable(): Promise<boolean> {
   if (_settingsTableExists !== null) return _settingsTableExists;
   if (!supabase) return false;
-
   try {
     const { error } = await supabase.from("site_settings").select("key").limit(1);
     _settingsTableExists = !error;
@@ -84,6 +77,8 @@ export interface SiteSettings {
   site_name: string;
   hf_space_url: string;
   hf_api_path: string;
+  hf_api_token: string;
+  hf_model: string;
 }
 
 export const DEFAULT_SETTINGS: SiteSettings = {
@@ -95,9 +90,21 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   admob_app_id: "",
   admob_ad_unit_id: "",
   site_name: "HF Space Chat",
-  hf_space_url: "https://your-space.hf.space",
-  hf_api_path: "/api/predict",
+  hf_space_url: "https://yass3r4099-gemma-4-server.hf.space",
+  hf_api_path: "/v1/chat/completions",
+  hf_api_token: "",  // Set via Admin Dashboard or Supabase
+  hf_model: "HuggingFaceTB/SmolLM2-1.7B-Instruct",
 };
+
+// Available models for selection
+export const AVAILABLE_MODELS = [
+  { id: "HuggingFaceTB/SmolLM2-1.7B-Instruct", name: "SmolLM2 1.7B", desc: "سريع وخفيف" },
+  { id: "meta-llama/Llama-3.2-3B-Instruct", name: "Llama 3.2 3B", desc: "متوازن" },
+  { id: "mistralai/Mistral-7B-Instruct-v0.3", name: "Mistral 7B", desc: "قوي" },
+  { id: "google/gemma-2-2b-it", name: "Gemma 2 2B", desc: "جوجل" },
+  { id: "Qwen/Qwen2.5-3B-Instruct", name: "Qwen 2.5 3B", desc: "متعدد اللغات" },
+  { id: "microsoft/Phi-3.5-mini-instruct", name: "Phi 3.5 Mini", desc: "مايكروسوفت" },
+];
 
 const SETTINGS_KEY = "hf_site_settings";
 
@@ -167,7 +174,6 @@ export async function saveSettings(settings: SiteSettings): Promise<boolean> {
 
 // Sanitize text to prevent XSS
 export function sanitizeText(text: string): string {
-  // Remove potential script tags and event handlers
   return text
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
     .replace(/on\w+="[^"]*"/gi, "")

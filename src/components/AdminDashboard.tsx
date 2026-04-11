@@ -306,16 +306,45 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
                       className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1.5">رابط HF Space</label>
-                    <input type="url" value={settings.hf_space_url} onChange={(e) => updateSetting("hf_space_url", e.target.value)}
-                      dir="ltr" className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+
+                {/* HF API Section */}
+                <div className="border-t border-slate-800 pt-5">
+                  <h4 className="text-sm font-semibold text-orange-400 mb-3 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    Hugging Face API
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1.5">رابط HF Space</label>
+                      <input type="url" value={settings.hf_space_url} onChange={(e) => updateSetting("hf_space_url", e.target.value)}
+                        dir="ltr" className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1.5">مسار API</label>
+                      <input type="text" value={settings.hf_api_path} onChange={(e) => updateSetting("hf_api_path", e.target.value)}
+                        dir="ltr" className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1.5">مسار API</label>
-                    <input type="text" value={settings.hf_api_path} onChange={(e) => updateSetting("hf_api_path", e.target.value)}
-                      dir="ltr" className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1.5">HF API Token</label>
+                      <input type="password" value={settings.hf_api_token} onChange={(e) => updateSetting("hf_api_token", e.target.value)}
+                        placeholder="hf_..." dir="ltr"
+                        className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                      <p className="text-[10px] text-slate-500 mt-1">من huggingface.co/settings/tokens</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1.5">النموذج الافتراضي</label>
+                      <select value={settings.hf_model} onChange={(e) => updateSetting("hf_model", e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm">
+                        <option value="HuggingFaceTB/SmolLM2-1.7B-Instruct">SmolLM2 1.7B (سريع)</option>
+                        <option value="meta-llama/Llama-3.2-3B-Instruct">Llama 3.2 3B (متوازن)</option>
+                        <option value="mistralai/Mistral-7B-Instruct-v0.3">Mistral 7B (قوي)</option>
+                        <option value="google/gemma-2-2b-it">Gemma 2 2B (جوجل)</option>
+                        <option value="Qwen/Qwen2.5-3B-Instruct">Qwen 2.5 3B (متعدد اللغات)</option>
+                        <option value="microsoft/Phi-3.5-mini-instruct">Phi 3.5 Mini (مايكروسوفت)</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>

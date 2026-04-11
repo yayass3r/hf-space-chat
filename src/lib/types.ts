@@ -28,6 +28,8 @@ export interface SiteSettings {
   site_name: string;
   hf_space_url: string;
   hf_api_path: string;
+  hf_api_token: string;
+  hf_model: string;
 }
 
 export type SiteSettingKey = keyof SiteSettings;
@@ -41,8 +43,10 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   admob_app_id: "",
   admob_ad_unit_id: "",
   site_name: "HF Space Chat",
-  hf_space_url: "https://your-space.hf.space",
-  hf_api_path: "/api/predict",
+  hf_space_url: "https://yass3r4099-gemma-4-server.hf.space",
+  hf_api_path: "/v1/chat/completions",
+  hf_api_token: "",  // Set via Admin Dashboard or Supabase
+  hf_model: "HuggingFaceTB/SmolLM2-1.7B-Instruct",
 };
 
 export interface DashboardStats {
