@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "./AuthProvider";
-import { loadSettings, saveSettings, DEFAULT_SETTINGS, type SiteSettings } from "@/lib/supabase";
-import type { SiteSettingKey } from "@/lib/types";
+import { loadSettings, saveSettings, DEFAULT_SETTINGS, supabase, isSupabaseConfigured, checkProfilesTable } from "@/lib/supabase";
+import type { SiteSettingKey, UserProfile, DashboardStats } from "@/lib/types";
 
 interface AdminTab {
   id: string;
@@ -12,14 +12,25 @@ interface AdminTab {
 }
 
 export default function AdminDashboard({ onClose }: { onClose: () => void }) {
-  const { signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState("settings");
-  const [settings, setSettings] = useState<SiteSettings>({ ...DEFAULT_SETTINGS });
+  const { signOut, user } = useAuth();
+  const [activeTab, setActiveTab] = useState("overview");
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [stats, setStats] = useState<DashboardStats>({ totalUsers: 0, totalSessions: 0, totalMessages: 0, todayMessages: 0, activeUsers: 0 });
 
   const tabs: AdminTab[] = [
+    {
+      id: "overview",
+      label: "نظرة عامة",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        </svg>
+      ),
+    },
     {
       id: "settings",
       label: "الإعدادات العامة",
@@ -27,6 +38,15 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+    },
+    {
+      id: "users",
+      label: "إدارة المستخدمين",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
         </svg>
       ),
     },
@@ -40,27 +60,73 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
         </svg>
       ),
     },
-    {
-      id: "sql",
-      label: "إعداد قاعدة البيانات",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-        </svg>
-      ),
-    },
   ];
 
   useEffect(() => {
     let mounted = true;
-    loadSettings().then((s) => {
+    async function init() {
+      const s = await loadSettings();
       if (mounted) {
         setSettings(s);
         setLoading(false);
       }
-    });
+    }
+    init();
     return () => { mounted = false; };
   }, []);
+
+  // Load users and stats when tab changes
+  useEffect(() => {
+    if (activeTab === "users" && supabase) {
+      loadUsers();
+    }
+    if (activeTab === "overview" && supabase) {
+      loadStats();
+    }
+  }, [activeTab]);
+
+  async function loadUsers() {
+    if (!supabase) return;
+    try {
+      const profilesExist = await checkProfilesTable();
+      if (profilesExist) {
+        const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
+        if (data) setUsers(data as UserProfile[]);
+      }
+    } catch {}
+  }
+
+  async function loadStats() {
+    if (!supabase) return;
+    try {
+      const [usersRes, sessionsRes, messagesRes, todayRes] = await Promise.all([
+        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        supabase.from("projects").select("id", { count: "exact", head: true }),
+        supabase.from("ai_chat_messages").select("id", { count: "exact", head: true }),
+        supabase.from("ai_chat_messages").select("id").gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
+      ]);
+
+      setStats({
+        totalUsers: usersRes.count || 0,
+        totalSessions: sessionsRes.count || 0,
+        totalMessages: messagesRes.count || 0,
+        todayMessages: todayRes.data?.length || 0,
+        activeUsers: usersRes.count || 0,
+      });
+    } catch {}
+  }
+
+  async function updateUserRole(userId: string, newRole: "admin" | "user") {
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.from("profiles").update({ role: newRole }).eq("id", userId);
+      if (!error) {
+        setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: newRole } : u));
+        setMessage({ type: "success", text: "تم تحديث دور المستخدم بنجاح" });
+        setTimeout(() => setMessage(null), 3000);
+      }
+    } catch {}
+  }
 
   const handleSaveSettings = async () => {
     setSaving(true);
@@ -93,76 +159,6 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
     );
   }
 
-  const SQL_INSTRUCTIONS = `-- انسخ هذا السكريبت ونفذه في Supabase SQL Editor
--- https://supabase.com/dashboard/project/ucmpclgctjeyoimtmqir/sql
-
--- 1. إنشاء جدول الملفات الشخصية
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  email TEXT NOT NULL DEFAULT '',
-  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- 2. إنشاء جدول إعدادات الموقع
-CREATE TABLE IF NOT EXISTS public.site_settings (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL DEFAULT ''
-);
-
--- 3. إدراج الإعدادات الافتراضية
-INSERT INTO public.site_settings (key, value) VALUES
-  ('admin_emails', '${settings.admin_emails}'),
-  ('adsense_enabled', '${settings.adsense_enabled}'),
-  ('adsense_client_id', '${settings.adsense_client_id}'),
-  ('adsense_ad_slot', '${settings.adsense_ad_slot}'),
-  ('admob_enabled', '${settings.admob_enabled}'),
-  ('admob_app_id', '${settings.admob_app_id}'),
-  ('admob_ad_unit_id', '${settings.admob_ad_unit_id}'),
-  ('site_name', '${settings.site_name}'),
-  ('hf_space_url', '${settings.hf_space_url}'),
-  ('hf_api_path', '${settings.hf_api_path}')
-ON CONFLICT (key) DO NOTHING;
-
--- 4. تفعيل Row Level Security
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
-
--- 5. سياسات الأمان
-CREATE POLICY "Users can read own profile" ON public.profiles
-  FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can update own profile" ON public.profiles
-  FOR UPDATE USING (auth.uid() = id);
-CREATE POLICY "Admins can read all profiles" ON public.profiles
-  FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
-CREATE POLICY "Admins can update any profile" ON public.profiles
-  FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
-CREATE POLICY "Allow profile insert on signup" ON public.profiles
-  FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "Authenticated users can read settings" ON public.site_settings
-  FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "Admins can insert settings" ON public.site_settings
-  FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
-CREATE POLICY "Admins can update settings" ON public.site_settings
-  FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
-
--- 6. دالة إنشاء الملف الشخصي تلقائياً عند التسجيل
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email, role)
-  VALUES (NEW.id, NEW.email,
-    CASE WHEN EXISTS (SELECT 1 FROM public.site_settings WHERE key = 'admin_emails' AND NEW.email = ANY(string_to_array(value, ','))) THEN 'admin' ELSE 'user' END
-  );
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();`;
-
   return (
     <div className="flex h-screen bg-slate-950" dir="rtl">
       {/* Sidebar */}
@@ -174,7 +170,7 @@ CREATE TRIGGER on_auth_user_created
             </div>
             <div>
               <h2 className="text-sm font-bold text-white">لوحة التحكم</h2>
-              <p className="text-xs text-slate-500">مسؤول</p>
+              <p className="text-xs text-slate-500">{user?.email}</p>
             </div>
           </div>
         </div>
@@ -220,10 +216,71 @@ CREATE TRIGGER on_auth_user_created
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto p-6 space-y-6">
+        <div className="max-w-5xl mx-auto p-6 space-y-6">
           {message && (
             <div className={`px-4 py-3 rounded-xl text-sm ${message.type === "success" ? "bg-emerald-900/20 border border-emerald-800 text-emerald-400" : "bg-red-900/20 border border-red-800 text-red-400"}`}>
               {message.text}
+            </div>
+          )}
+
+          {/* Overview Tab */}
+          {activeTab === "overview" && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-bold text-white mb-1">نظرة عامة</h3>
+                <p className="text-sm text-slate-500">إحصائيات الاستخدام والحالة العامة</p>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <StatCard title="المستخدمين" value={stats.totalUsers} icon="👥" color="blue" />
+                <StatCard title="المحادثات" value={stats.totalSessions} icon="💬" color="emerald" />
+                <StatCard title="الرسائل" value={stats.totalMessages} icon="✉️" color="orange" />
+                <StatCard title="رسائل اليوم" value={stats.todayMessages} icon="📊" color="purple" />
+              </div>
+
+              {/* Quick Actions */}
+              <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+                <h4 className="text-sm font-semibold text-white mb-3">إجراءات سريعة</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <button
+                    onClick={() => setActiveTab("users")}
+                    className="px-4 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-colors text-center"
+                  >
+                    إدارة المستخدمين
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("settings")}
+                    className="px-4 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-colors text-center"
+                  >
+                    إعدادات الموقع
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("ads")}
+                    className="px-4 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-colors text-center"
+                  >
+                    إدارة الإعلانات
+                  </button>
+                  <a
+                    href="https://supabase.com/dashboard/project/ucmpclgctjeyoimtmqir"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-colors text-center block"
+                  >
+                    Supabase Dashboard
+                  </a>
+                </div>
+              </div>
+
+              {/* System Status */}
+              <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+                <h4 className="text-sm font-semibold text-white mb-3">حالة النظام</h4>
+                <div className="space-y-3">
+                  <StatusRow label="Supabase" status={isSupabaseConfigured ? "connected" : "disconnected"} />
+                  <StatusRow label="HF Space API" status={settings.hf_space_url !== "https://your-space.hf.space" ? "connected" : "warning"} />
+                  <StatusRow label="AdSense" status={settings.adsense_enabled === "true" ? "connected" : "inactive"} />
+                  <StatusRow label="AdMob" status={settings.admob_enabled === "true" ? "connected" : "inactive"} />
+                </div>
+              </div>
             </div>
           )}
 
@@ -266,6 +323,71 @@ CREATE TRIGGER on_auth_user_created
               <button onClick={handleSaveSettings} disabled={saving}
                 className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-medium shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all disabled:opacity-50 text-sm">
                 {saving ? "جاري الحفظ..." : "حفظ الإعدادات"}
+              </button>
+            </div>
+          )}
+
+          {/* Users Tab */}
+          {activeTab === "users" && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-bold text-white mb-1">إدارة المستخدمين</h3>
+                <p className="text-sm text-slate-500">عرض وإدارة المستخدمين المسجلين</p>
+              </div>
+
+              {users.length === 0 ? (
+                <div className="bg-slate-900 rounded-xl border border-slate-800 p-8 text-center">
+                  <p className="text-slate-500">لا يوجد مستخدمين مسجلين</p>
+                </div>
+              ) : (
+                <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-800">
+                        <th className="text-right px-4 py-3 text-slate-400 font-medium">البريد الإلكتروني</th>
+                        <th className="text-right px-4 py-3 text-slate-400 font-medium">الدور</th>
+                        <th className="text-right px-4 py-3 text-slate-400 font-medium">تاريخ التسجيل</th>
+                        <th className="text-right px-4 py-3 text-slate-400 font-medium">إجراءات</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((u) => (
+                        <tr key={u.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                          <td className="px-4 py-3 text-white" dir="ltr">{u.email}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              u.role === "admin" ? "bg-orange-500/20 text-orange-400" : "bg-slate-700 text-slate-300"
+                            }`}>
+                              {u.role === "admin" ? "مسؤول" : "مستخدم"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-400 text-xs" dir="ltr">
+                            {new Date(u.created_at).toLocaleDateString("ar-SA")}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => updateUserRole(u.id, u.role === "admin" ? "user" : "admin")}
+                              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                                u.role === "admin"
+                                  ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                  : "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30"
+                              }`}
+                            >
+                              {u.role === "admin" ? "إلغاء الإدارة" : "جعل مسؤول"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <button
+                onClick={loadUsers}
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-colors"
+              >
+                تحديث القائمة
               </button>
             </div>
           )}
@@ -354,49 +476,49 @@ CREATE TRIGGER on_auth_user_created
               </button>
             </div>
           )}
-
-          {/* SQL Setup Tab */}
-          {activeTab === "sql" && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-bold text-white mb-1">إعداد قاعدة البيانات</h3>
-                <p className="text-sm text-slate-500">أنشئ الجداول الناقصة في Supabase SQL Editor</p>
-              </div>
-
-              <div className="bg-amber-900/20 border border-amber-800 rounded-xl p-4">
-                <h4 className="text-sm font-semibold text-amber-400 mb-2">الخطوات المطلوبة:</h4>
-                <ol className="text-sm text-amber-300/80 space-y-1 list-decimal list-inside">
-                  <li>اذهب إلى Supabase Dashboard → SQL Editor</li>
-                  <li>انسخ السكريبت أدناه والصقه في المحرر</li>
-                  <li>اضغط على Run لتنفيذ السكريبت</li>
-                  <li>في Authentication → Providers تأكد من تفعيل Email</li>
-                  <li>في Authentication → Settings يمكنك إلغاء &ldquo;Confirm email&rdquo; للوصول الفوري</li>
-                </ol>
-              </div>
-
-              <a href="https://supabase.com/dashboard/project/ucmpclgctjeyoimtmqir/sql"
-                target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                فتح Supabase SQL Editor
-              </a>
-
-              <div className="relative">
-                <button
-                  onClick={() => navigator.clipboard.writeText(SQL_INSTRUCTIONS).then(() => { setMessage({ type: "success", text: "تم النسخ!" }); setTimeout(() => setMessage(null), 2000); })}
-                  className="absolute top-3 left-3 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-white transition-colors z-10">
-                  نسخ
-                </button>
-                <pre className="bg-slate-900 border border-slate-800 rounded-xl p-5 pt-12 overflow-x-auto text-xs text-emerald-400 font-mono leading-relaxed" dir="ltr">
-                  {SQL_INSTRUCTIONS}
-                </pre>
-              </div>
-            </div>
-          )}
         </div>
       </main>
+    </div>
+  );
+}
+
+// Stat Card Component
+function StatCard({ title, value, icon, color }: { title: string; value: number; icon: string; color: string }) {
+  const colorClasses: Record<string, string> = {
+    blue: "from-blue-500/20 to-blue-600/5 border-blue-500/30",
+    emerald: "from-emerald-500/20 to-emerald-600/5 border-emerald-500/30",
+    orange: "from-orange-500/20 to-orange-600/5 border-orange-500/30",
+    purple: "from-purple-500/20 to-purple-600/5 border-purple-500/30",
+  };
+
+  return (
+    <div className={`bg-gradient-to-br ${colorClasses[color]} border rounded-xl p-4`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-2xl">{icon}</span>
+      </div>
+      <p className="text-2xl font-bold text-white">{value.toLocaleString("ar-SA")}</p>
+      <p className="text-xs text-slate-400 mt-1">{title}</p>
+    </div>
+  );
+}
+
+// Status Row Component
+function StatusRow({ label, status }: { label: string; status: "connected" | "disconnected" | "warning" | "inactive" }) {
+  const statusConfig = {
+    connected: { color: "bg-emerald-400", text: "متصل" },
+    disconnected: { color: "bg-red-400", text: "غير متصل" },
+    warning: { color: "bg-yellow-400", text: "يحتاج إعداد" },
+    inactive: { color: "bg-slate-600", text: "غير مفعّل" },
+  };
+  const config = statusConfig[status];
+
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-slate-300">{label}</span>
+      <div className="flex items-center gap-2">
+        <span className={`w-2 h-2 rounded-full ${config.color}`}></span>
+        <span className="text-xs text-slate-400">{config.text}</span>
+      </div>
     </div>
   );
 }

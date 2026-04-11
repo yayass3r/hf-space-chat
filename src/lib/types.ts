@@ -1,6 +1,7 @@
 export interface Message {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
+  id?: string;
 }
 
 export interface ChatSession {
@@ -43,3 +44,11 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   hf_space_url: "https://your-space.hf.space",
   hf_api_path: "/api/predict",
 };
+
+export interface DashboardStats {
+  totalUsers: number;
+  totalSessions: number;
+  totalMessages: number;
+  todayMessages: number;
+  activeUsers: number;
+}

@@ -2,11 +2,12 @@
 
 import React, { useState } from "react";
 import { useAuth } from "./AuthProvider";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const { signIn, signUp } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isResetMode, setIsResetMode] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -19,8 +20,37 @@ export default function LoginPage() {
     setError(null);
     setSuccess(null);
 
-    if (!email.trim() || !password.trim()) {
-      setError("يرجى إدخال البريد الإلكتروني وكلمة المرور");
+    if (!email.trim()) {
+      setError("يرجى إدخال البريد الإلكتروني");
+      return;
+    }
+
+    // Reset password mode
+    if (isResetMode) {
+      if (!supabase) {
+        setError("Supabase غير مُعد");
+        return;
+      }
+      setLoading(true);
+      try {
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin,
+        });
+        if (err) {
+          setError(err.message);
+        } else {
+          setSuccess("تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني");
+        }
+      } catch {
+        setError("حدث خطأ غير متوقع");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (!password.trim()) {
+      setError("يرجى إدخال كلمة المرور");
       return;
     }
 
@@ -44,7 +74,8 @@ export default function LoginPage() {
             ? "هذا البريد الإلكتروني مسجل مسبقاً"
             : err);
         } else {
-          setSuccess("تم إنشاء الحساب بنجاح! تحقق من بريدك الإلكتروني للتأكيد");
+          setSuccess("تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول");
+          setIsSignUp(false);
         }
       } else {
         const { error: err } = await signIn(email, password);
@@ -92,7 +123,7 @@ export default function LoginPage() {
             HF Space Chat
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-2">
-            {isSignUp ? "إنشاء حساب جديد" : "تسجيل الدخول إلى حسابك"}
+            {isResetMode ? "إعادة تعيين كلمة المرور" : isSignUp ? "إنشاء حساب جديد" : "تسجيل الدخول إلى حسابك"}
           </p>
         </div>
 
@@ -101,13 +132,19 @@ export default function LoginPage() {
           className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-6 space-y-4"
         >
           {error && (
-            <div className="px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
+            <div className="px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm flex items-center gap-2">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               {error}
             </div>
           )}
 
           {success && (
-            <div className="px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-sm">
+            <div className="px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-sm flex items-center gap-2">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               {success}
             </div>
           )}
@@ -127,22 +164,24 @@ export default function LoginPage() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-              كلمة المرور
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              dir="ltr"
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-              required
-            />
-          </div>
+          {!isResetMode && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                كلمة المرور
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                dir="ltr"
+                className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                required
+              />
+            </div>
+          )}
 
-          {isSignUp && (
+          {isSignUp && !isResetMode && (
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 تأكيد كلمة المرور
@@ -172,23 +211,36 @@ export default function LoginPage() {
                 </svg>
                 جاري المعالجة...
               </span>
-            ) : isSignUp ? "إنشاء حساب" : "تسجيل الدخول"}
+            ) : isResetMode ? "إرسال رابط إعادة التعيين" : isSignUp ? "إنشاء حساب" : "تسجيل الدخول"}
           </button>
 
-          <div className="text-center pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError(null);
-                setSuccess(null);
-              }}
-              className="text-sm text-orange-600 dark:text-orange-400 hover:underline"
-            >
-              {isSignUp
-                ? "لديك حساب؟ سجل الدخول"
-                : "ليس لديك حساب؟ أنشئ واحدًا"}
-            </button>
+          <div className="flex items-center justify-between pt-2 text-sm">
+            {!isResetMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignUp(!isSignUp);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="text-orange-600 dark:text-orange-400 hover:underline"
+              >
+                {isSignUp ? "لديك حساب؟ سجل الدخول" : "ليس لديك حساب؟ أنشئ واحدًا"}
+              </button>
+            )}
+            {!isSignUp && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsResetMode(!isResetMode);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="text-slate-500 dark:text-slate-400 hover:text-orange-500 dark:hover:text-orange-400 hover:underline"
+              >
+                {isResetMode ? "العودة لتسجيل الدخول" : "نسيت كلمة المرور؟"}
+              </button>
+            )}
           </div>
         </form>
 

@@ -95,8 +95,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   admob_app_id: "",
   admob_ad_unit_id: "",
   site_name: "HF Space Chat",
-  hf_space_url: process.env.NEXT_PUBLIC_HF_SPACE_URL || "https://your-space.hf.space",
-  hf_api_path: process.env.NEXT_PUBLIC_HF_API_PATH || "/api/predict",
+  hf_space_url: "https://your-space.hf.space",
+  hf_api_path: "/api/predict",
 };
 
 const SETTINGS_KEY = "hf_site_settings";
@@ -163,4 +163,13 @@ export async function saveSettings(settings: SiteSettings): Promise<boolean> {
   }
 
   return true;
+}
+
+// Sanitize text to prevent XSS
+export function sanitizeText(text: string): string {
+  // Remove potential script tags and event handlers
+  return text
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/on\w+="[^"]*"/gi, "")
+    .replace(/on\w+='[^']*'/gi, "");
 }
