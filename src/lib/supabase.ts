@@ -172,10 +172,30 @@ export async function loadSettings(): Promise<SiteSettings> {
     } catch {}
   }
 
-  // 3. Safety check: ensure critical settings are never empty
-  if (!defaults.hf_space_url) defaults.hf_space_url = DEFAULT_SETTINGS.hf_space_url;
-  if (!defaults.hf_api_path) defaults.hf_api_path = DEFAULT_SETTINGS.hf_api_path;
-  if (!defaults.hf_model) defaults.hf_model = DEFAULT_SETTINGS.hf_model;
+  // 3. Safety check: ensure critical settings are never empty AND not placeholder values
+  // Detect placeholder/wrong values from initial setup and replace with correct defaults
+  const PLACEHOLDER_URLS = [
+    "https://your-space.hf.space",
+    "https://your-space.hf.space/",
+    "https://.hf.space",
+    "http://your-space.hf.space",
+  ];
+  const WRONG_API_PATHS = [
+    "/api/predict",
+    "/api/generate",
+    "/run/predict",
+    "/api/v1/predict",
+  ];
+
+  if (!defaults.hf_space_url || PLACEHOLDER_URLS.some(p => defaults.hf_space_url.startsWith(p.replace("/", "")))) {
+    defaults.hf_space_url = DEFAULT_SETTINGS.hf_space_url;
+  }
+  if (!defaults.hf_api_path || WRONG_API_PATHS.includes(defaults.hf_api_path)) {
+    defaults.hf_api_path = DEFAULT_SETTINGS.hf_api_path;
+  }
+  if (!defaults.hf_model) {
+    defaults.hf_model = DEFAULT_SETTINGS.hf_model;
+  }
 
   // 4. If no HF API token from any source, assemble it at runtime from parts
   // This avoids hardcoding the full token (which GitHub push protection would block)
@@ -184,6 +204,9 @@ export async function loadSettings(): Promise<SiteSettings> {
       "hf_Xgwq", "gfeMTHbfZmzu", "HIHYZDJXQFHs", "fYLBUA"
     ].join("");
   }
+
+  // 5. Log the final URL being used for debugging
+  console.log(`[HF Chat] API URL: ${defaults.hf_space_url}${defaults.hf_api_path}, Model: ${defaults.hf_model}`);
 
   return defaults;
 }
