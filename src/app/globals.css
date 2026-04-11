@@ -73,3 +73,68 @@ textarea {
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
 }
+
+/* ==================== Full-Stack Builder Styles ==================== */
+
+/* Code editor textarea - must match syntax highlighter exactly */
+textarea[style*="font-mono"],
+textarea[class*="font-mono"] {
+  caret-color: #f97316;
+  tab-size: 2;
+}
+
+/* Code editor: make transparent textarea match syntax highlighter */
+.dark textarea[class*="resize-none"] {
+  color: transparent;
+}
+
+/* Preview iframe */
+iframe[title="Preview"] {
+  background: white;
+}
+
+/* Builder file tree hover effects */
+.builder-file-item:hover .builder-file-actions {
+  opacity: 1;
+}
+
+/* Code editor line numbers simulation */
+.code-line-number {
+  user-select: none;
+  min-width: 2.5rem;
+  text-align: right;
+  padding-right: 0.75rem;
+  color: #4a5568;
+  font-size: 0.7rem;
+}
+
+/* Builder panel resize handle */
+.resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.resize-handle:hover {
+  background: #8b5cf6;
+}
+
+/* Mode toggle animation */
+.mode-toggle-enter {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Template card hover effect */
+.template-card {
+  transition: all 0.2s ease;
+}
+
+.template-card:hover {
+  transform: translateY(-2px);
+}

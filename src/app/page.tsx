@@ -5,10 +5,12 @@ import { AuthProvider, useAuth } from "@/components/AuthProvider";
 import LoginPage from "@/components/LoginPage";
 import ChatApp from "@/components/ChatApp";
 import AdminDashboard from "@/components/AdminDashboard";
+import FullStackBuilder from "@/components/FullStackBuilder";
 
 function AppContent() {
   const { user, isAdmin, loading } = useAuth();
   const [showAdmin, setShowAdmin] = useState(false);
+  const [appMode, setAppMode] = useState<"chat" | "builder">("chat");
 
   // Loading state
   if (loading) {
@@ -40,8 +42,37 @@ function AppContent() {
     return <AdminDashboard onClose={() => setShowAdmin(false)} />;
   }
 
-  // Authenticated → show chat
-  return <ChatApp onAdminClick={() => setShowAdmin(true)} />;
+  // Builder mode
+  if (appMode === "builder") {
+    return <FullStackBuilder onBack={() => setAppMode("chat")} />;
+  }
+
+  // Chat mode with builder tab
+  return (
+    <div className="relative h-screen">
+      {/* Mode toggle floating button */}
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-2 py-1.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg shadow-xl border border-slate-200 dark:border-slate-700">
+        <button
+          onClick={() => setAppMode("chat")}
+          className={`px-4 py-2 rounded-xl text-xs font-medium transition-all ${
+            appMode === "chat"
+              ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-lg shadow-orange-500/20"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+          }`}
+        >
+          💬 محادثة
+        </button>
+        <button
+          onClick={() => setAppMode("builder")}
+          className="px-4 py-2 rounded-xl text-xs font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+        >
+          🏗️ بناء
+        </button>
+      </div>
+
+      <ChatApp onAdminClick={() => setShowAdmin(true)} />
+    </div>
+  );
 }
 
 export default function Home() {
