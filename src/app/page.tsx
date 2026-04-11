@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, startTransition } from "react";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
 import LoginPage from "@/components/LoginPage";
 import ChatApp from "@/components/ChatApp";
@@ -8,14 +8,15 @@ import AdminDashboard from "@/components/AdminDashboard";
 import FullStackBuilder from "@/components/FullStackBuilder";
 import UserProfile from "@/components/UserProfile";
 import DeploymentHub from "@/components/DeploymentHub";
-
-type AppMode = "chat" | "builder" | "deploy";
+import AppLayout, { HomePage, type AppPage } from "@/components/AppLayout";
 
 function AppContent() {
   const { user, isAdmin, loading } = useAuth();
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const [appMode, setAppMode] = useState<AppMode>("chat");
+  const [currentPage, setCurrentPage] = useState<AppPage>("home");
+
+  const handleNavigate = useCallback((page: AppPage) => {
+    startTransition(() => { setCurrentPage(page); });
+  }, []);
 
   // Loading state
   if (loading) {
@@ -42,76 +43,57 @@ function AppContent() {
     return <LoginPage />;
   }
 
-  // Admin dashboard
-  if (showAdmin && isAdmin) {
-    return <AdminDashboard onClose={() => setShowAdmin(false)} />;
-  }
-
-  // User profile
-  if (showProfile) {
-    return <UserProfile onClose={() => setShowProfile(false)} />;
-  }
-
-  // Builder mode
-  if (appMode === "builder") {
-    return <FullStackBuilder onBack={() => setAppMode("chat")} />;
-  }
-
-  // Deploy mode - standalone deployment hub
-  if (appMode === "deploy") {
-    return (
-      <DeploymentHub
-        onClose={() => setAppMode("chat")}
-        standalone={true}
-      />
-    );
-  }
-
-  // Chat mode with builder/deploy tabs
-  // Use currentMode to avoid TypeScript narrowing issues after early returns
-  const currentMode = appMode as AppMode;
+  // Render page content based on current page
+  const renderPageContent = () => {
+    switch (currentPage) {
+      case "home":
+        return (
+          <HomePage
+            onNavigate={handleNavigate}
+            user={user}
+            isAdmin={isAdmin}
+          />
+        );
+      case "chat":
+        return (
+          <ChatApp
+            onAdminClick={() => handleNavigate("admin")}
+            onProfileClick={() => handleNavigate("profile")}
+            embedded={true}
+          />
+        );
+      case "builder":
+        return <FullStackBuilder onBack={() => handleNavigate("home")} />;
+      case "deploy":
+        return (
+          <DeploymentHub
+            onClose={() => handleNavigate("home")}
+            standalone={true}
+          />
+        );
+      case "profile":
+        return <UserProfile onClose={() => handleNavigate("home")} />;
+      case "admin":
+        if (!isAdmin) {
+          handleNavigate("home");
+          return null;
+        }
+        return <AdminDashboard onClose={() => handleNavigate("home")} />;
+      default:
+        return (
+          <HomePage
+            onNavigate={handleNavigate}
+            user={user}
+            isAdmin={isAdmin}
+          />
+        );
+    }
+  };
 
   return (
-    <div className="relative h-screen">
-      {/* Mode toggle floating button */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-2 py-1.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg shadow-xl border border-slate-200 dark:border-slate-700">
-        <button
-          onClick={() => setAppMode("chat")}
-          className={`px-4 py-2 rounded-xl text-xs font-medium transition-all ${
-            currentMode === "chat"
-              ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-lg shadow-orange-500/20"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-        >
-          💬 محادثة
-        </button>
-        <button
-          onClick={() => setAppMode("builder")}
-          className={`px-4 py-2 rounded-xl text-xs font-medium transition-all ${
-            currentMode === "builder"
-              ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/20"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-        >
-          🏗️ بناء
-        </button>
-        <button
-          onClick={() => setAppMode("deploy")}
-          className={`px-4 py-2 rounded-xl text-xs font-medium transition-all ${
-            currentMode === "deploy"
-              ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-        >
-          🚀 نشر
-        </button>
-      </div>
-
-      <ChatApp
-        onAdminClick={() => setShowAdmin(true)}
-        onProfileClick={() => setShowProfile(true)}
-      />
-    </div>
+    <AppLayout currentPage={currentPage} onNavigate={handleNavigate}>
+      {renderPageContent()}
+    </AppLayout>
   );
 }
 

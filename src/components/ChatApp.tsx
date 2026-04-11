@@ -8,7 +8,7 @@ import MarkdownMessage from "@/components/MarkdownMessage";
 import { UserAvatar } from "@/components/UserProfile";
 import type { Message, ChatSession, UserProfile } from "@/lib/types";
 
-export default function ChatApp({ onAdminClick, onProfileClick }: { onAdminClick: () => void; onProfileClick: () => void; onDeployClick?: () => void }) {
+export default function ChatApp({ onAdminClick, onProfileClick, embedded = false }: { onAdminClick: () => void; onProfileClick: () => void; onDeployClick?: () => void; embedded?: boolean }) {
   const { user, isAdmin, signOut } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -409,7 +409,7 @@ export default function ChatApp({ onAdminClick, onProfileClick }: { onAdminClick
   const isLastMessage = (index: number) => index === messages.length - 1;
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 transition-colors duration-300">
+    <div className={`flex ${embedded ? "h-full" : "h-screen"} bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 transition-colors duration-300`}>
       {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />}
 
       {/* Sidebar */}
@@ -497,7 +497,7 @@ export default function ChatApp({ onAdminClick, onProfileClick }: { onAdminClick
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <ThemeToggle />
+            {!embedded && <ThemeToggle />}
             {/* FIXED: Model selector dropdown - uses click instead of hover for mobile */}
             <div className="relative" ref={modelMenuRef}>
               <button
@@ -544,9 +544,11 @@ export default function ChatApp({ onAdminClick, onProfileClick }: { onAdminClick
             <button onClick={onProfileClick} className="p-2 rounded-lg text-slate-500 hover:text-orange-600 dark:text-slate-400 dark:hover:text-orange-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="الملف الشخصي">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             </button>
-            <button onClick={signOut} className="p-2 rounded-lg text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="تسجيل الخروج">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            </button>
+            {!embedded && (
+              <button onClick={signOut} className="p-2 rounded-lg text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="تسجيل الخروج">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              </button>
+            )}
           </div>
         </header>
 

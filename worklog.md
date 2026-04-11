@@ -138,3 +138,46 @@ Stage Summary:
 - SQL migration script جاهز للتطبيق في Supabase SQL Editor
 - الشريط الجانبي محسن مع صورة رمزية واسم معروض
 - لوحة تحكم المدير تعرض بيانات الملف الشخصي الجديدة
+---
+Task ID: 9
+Agent: Main Agent
+Task: تقسيم الموقع لصفحات متعددة مع شريط تنقل جانبي
+
+Work Log:
+- قراءة جميع ملفات المشروع الحالية (ChatApp, FullStackBuilder, DeploymentHub, UserProfile, AdminDashboard, page.tsx, types.ts, supabase.ts)
+- صمم نظام صفحات متعدد باستخدام Client-side routing داخل الصفحة الواحدة
+- أنشأ مكون AppLayout.tsx جديد مع:
+  - شريط تنقل جانبي ثابت مع 6 عناصر (الرئيسية، المحادثة، بناء، نشر، الملف الشخصي، لوحة التحكم)
+  - صفحة رئيسية (HomePage) مع إحصائيات وإجراءات سريعة وقائمة نماذج
+  - تبديل الوضع المظلم/الفاتح في الشريط الجانبي
+  - تصغير/توسيع الشريط الجانبي
+  - بطاقة مستخدم في أسفل الشريط الجانبي
+  - قائمة متجاوبة للموبايل
+  - دعم URL hash للتنقل (#chat, #builder, #deploy, etc.)
+- أنشأ نوع AppPage للتوجيه بين الصفحات
+- حدّث page.tsx:
+  - إزالة نظام الأوضاع القديم (appMode, showAdmin, showProfile)
+  - استخدام AppLayout مع نظام الصفحات الجديد
+  - دعم الصفحات: home, chat, builder, deploy, profile, admin
+  - الصفحات fullscreen (builder, profile) تعرض بدون التخطيط الجانبي
+- حدّث ChatApp.tsx:
+  - إضافة خاصية embedded للوضع المدمج
+  - في الوضع المدمج: استخدام h-full بدلاً من h-screen
+  - إخفاء ThemeToggle وزر تسجيل الخروج في الوضع المدمج
+- أضاف أنماط CSS جديدة لـ globals.css:
+  - pageSlideIn animation للانتقال بين الصفحات
+  - sidebar-nav-active indicator
+  - mobile-bottom-nav للموبايل
+  - quick-action-card hover effects
+  - stat-card subtle animation
+- أصلح جميع أخطاء TypeScript (SiteSettings import, UserProfile type, unused vars)
+- بناء ناجح و lint نظيف
+
+Stage Summary:
+- الموقع مقسم الآن لصفحات مع شريط تنقل جانبي ثابت
+- 6 صفحات: الرئيسية، المحادثة، بناء المشاريع، نشر المشاريع، الملف الشخصي، لوحة التحكم
+- الصفحة الرئيسية تعرض إحصائيات وإجراءات سريعة
+- شريط جانبي متجاوب مع تصغير/توسيع ودعم الموبايل
+- انتقال سلس بين الصفحات مع URL hash support
+- الملفات الجديدة: AppLayout.tsx
+- الملفات المعدلة: page.tsx, ChatApp.tsx, globals.css

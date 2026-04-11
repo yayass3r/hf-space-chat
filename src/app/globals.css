@@ -191,3 +191,83 @@ iframe[title="Preview"] {
 .dark .timeline-connector::after {
   background: linear-gradient(to bottom, #334155, transparent);
 }
+
+/* ==================== App Layout / Multi-Page Styles ==================== */
+
+/* Page transition animation */
+@keyframes pageSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-page-in {
+  animation: pageSlideIn 0.25s ease-out;
+}
+
+/* Sidebar navigation active indicator */
+.sidebar-nav-active {
+  position: relative;
+}
+
+.sidebar-nav-active::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 3px 0 0 3px;
+  background: linear-gradient(to bottom, #f97316, #eab308);
+}
+
+/* Sidebar collapsed state icon centering */
+.sidebar-collapsed-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile bottom navigation bar */
+@media (max-width: 1024px) {
+  .mobile-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid #e2e8f0;
+    padding: 0.5rem 0;
+    padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+  }
+
+  .dark .mobile-bottom-nav {
+    background: rgba(15, 23, 42, 0.95);
+    border-top-color: #1e293b;
+  }
+}
+
+/* Quick action card hover animation */
+.quick-action-card {
+  transition: all 0.2s ease;
+}
+
+.quick-action-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+.dark .quick-action-card:hover {
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+}
+
+/* Stats card subtle animation */
+.stat-card {
+  transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: scale(1.02);
+}
