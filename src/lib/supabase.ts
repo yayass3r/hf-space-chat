@@ -88,8 +88,8 @@ export interface SiteSettings {
 
 export const DEFAULT_SETTINGS: SiteSettings = {
   admin_emails: process.env.NEXT_PUBLIC_ADMIN_EMAILS || "yayass3r@gmail.com",
-  adsense_enabled: "false",
-  adsense_client_id: "",
+  adsense_enabled: "true",
+  adsense_client_id: "ca-pub-2304503997296254",
   adsense_ad_slot: "",
   admob_enabled: "false",
   admob_app_id: "",

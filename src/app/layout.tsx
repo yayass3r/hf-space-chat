@@ -43,6 +43,12 @@ export default function RootLayout({
     <html lang="ar" className="h-full antialiased" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        {/* Google AdSense Verification & Auto Ads */}
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2304503997296254"
+          crossOrigin="anonymous"
+        />
       </head>
       <body className="min-h-full flex flex-col font-sans">{children}</body>
     </html>
