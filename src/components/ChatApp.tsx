@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase, isSupabaseConfigured, loadSettings, type SiteSettings, DEFAULT_SETTINGS } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import AdBanner from "@/components/AdBanner";
@@ -43,30 +43,28 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
           setDbStatus("disconnected");
         } else {
           setDbStatus("connected");
-          loadSessions();
+          // Load sessions after connection confirmed
+          if (user) {
+            try {
+              const { data, error: err2 } = await supabase!
+                .from("projects")
+                .select("id, name, created_at")
+                .eq("template", "chat")
+                .eq("user_id", user!.id)
+                .order("created_at", { ascending: false })
+                .limit(20);
+              if (!err2 && data) {
+                setSessions(data as ChatSession[]);
+              }
+            } catch { /* silently fail */ }
+          }
         }
       } catch {
         setDbStatus("disconnected");
       }
     }
     checkConnection();
-  }, []);
-
-  async function loadSessions() {
-    if (!supabase || !user) return;
-    try {
-      const { data, error: err } = await supabase!
-        .from("projects")
-        .select("id, name, created_at")
-        .eq("template", "chat")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (!err && data) {
-        setSessions(data as ChatSession[]);
-      }
-    } catch { /* silently fail */ }
-  }
+  }, [user]);
 
   async function createNewSession(firstMessage: string) {
     if (!supabase || !user) return null;
@@ -102,7 +100,7 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
   const spaceUrl = siteSettings.hf_space_url;
   const apiPath = siteSettings.hf_api_path;
 
-  const sendMessage = useCallback(async () => {
+  const sendMessage = async () => {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
 
@@ -166,7 +164,7 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
       setIsLoading(false);
       inputRef.current?.focus();
     }
-  }, [input, isLoading, spaceUrl, apiPath, currentSessionId, user]);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "./AuthProvider";
-import { supabase, isSupabaseConfigured, loadSettings, saveSettings, DEFAULT_SETTINGS, type SiteSettings } from "@/lib/supabase";
+import { loadSettings, saveSettings, DEFAULT_SETTINGS, type SiteSettings } from "@/lib/supabase";
 import type { SiteSettingKey } from "@/lib/types";
 
 interface AdminTab {
@@ -12,13 +12,12 @@ interface AdminTab {
 }
 
 export default function AdminDashboard({ onClose }: { onClose: () => void }) {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
   const [activeTab, setActiveTab] = useState("settings");
   const [settings, setSettings] = useState<SiteSettings>({ ...DEFAULT_SETTINGS });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [users, setUsers] = useState<Array<{ id: string; email: string; role: string; created_at: string }>>([]);
 
   const tabs: AdminTab[] = [
     {
@@ -52,21 +51,16 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
     },
   ];
 
-  const loadAllSettings = useCallback(async () => {
-    setLoading(true);
-    const s = await loadSettings();
-    setSettings(s);
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
-    loadAllSettings();
-    // Try to load users if profiles table exists
-    if (supabase) {
-      supabase.from("profiles").select("id, email, role, created_at").order("created_at", { ascending: false })
-        .then(({ data }) => { if (data) setUsers(data); });
-    }
-  }, [loadAllSettings]);
+    let mounted = true;
+    loadSettings().then((s) => {
+      if (mounted) {
+        setSettings(s);
+        setLoading(false);
+      }
+    });
+    return () => { mounted = false; };
+  }, []);
 
   const handleSaveSettings = async () => {
     setSaving(true);
@@ -376,7 +370,7 @@ CREATE TRIGGER on_auth_user_created
                   <li>انسخ السكريبت أدناه والصقه في المحرر</li>
                   <li>اضغط على Run لتنفيذ السكريبت</li>
                   <li>في Authentication → Providers تأكد من تفعيل Email</li>
-                  <li>في Authentication → Settings يمكنك إلغاء "Confirm email" للوصول الفوري</li>
+                  <li>في Authentication → Settings يمكنك إلغاء &ldquo;Confirm email&rdquo; للوصول الفوري</li>
                 </ol>
               </div>
 

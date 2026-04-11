@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { loadSettings, DEFAULT_SETTINGS } from "@/lib/supabase";
+import React, { useEffect, useState, useRef } from "react";
+import { loadSettings } from "@/lib/supabase";
 
 interface AdSettings {
   adsense_enabled: boolean;
@@ -21,26 +21,30 @@ export default function AdBanner({ position }: { position: "top" | "bottom" | "s
     admob_app_id: "",
     admob_ad_unit_id: "",
   });
-  const [adsenseLoaded, setAdsenseLoaded] = useState(false);
+  const adsenseLoadedRef = useRef(false);
 
   useEffect(() => {
+    let mounted = true;
     async function loadAdSettings() {
       const settings = await loadSettings();
-      setAdSettings({
-        adsense_enabled: settings.adsense_enabled === "true",
-        adsense_client_id: settings.adsense_client_id,
-        adsense_ad_slot: settings.adsense_ad_slot,
-        admob_enabled: settings.admob_enabled === "true",
-        admob_app_id: settings.admob_app_id,
-        admob_ad_unit_id: settings.admob_ad_unit_id,
-      });
+      if (mounted) {
+        setAdSettings({
+          adsense_enabled: settings.adsense_enabled === "true",
+          adsense_client_id: settings.adsense_client_id,
+          adsense_ad_slot: settings.adsense_ad_slot,
+          admob_enabled: settings.admob_enabled === "true",
+          admob_app_id: settings.admob_app_id,
+          admob_ad_unit_id: settings.admob_ad_unit_id,
+        });
+      }
     }
     loadAdSettings();
+    return () => { mounted = false; };
   }, []);
 
   // Load AdSense script
   useEffect(() => {
-    if (!adSettings.adsense_enabled || !adSettings.adsense_client_id || adsenseLoaded) return;
+    if (!adSettings.adsense_enabled || !adSettings.adsense_client_id || adsenseLoadedRef.current) return;
 
     const existingScript = document.querySelector('script[src*="pagead2.googlesyndication.com"]');
     if (!existingScript) {
@@ -50,8 +54,8 @@ export default function AdBanner({ position }: { position: "top" | "bottom" | "s
       script.crossOrigin = "anonymous";
       document.head.appendChild(script);
     }
-    setAdsenseLoaded(true);
-  }, [adSettings.adsense_enabled, adSettings.adsense_client_id, adsenseLoaded]);
+    adsenseLoadedRef.current = true;
+  }, [adSettings.adsense_enabled, adSettings.adsense_client_id]);
 
   // Push ad
   useEffect(() => {
@@ -61,7 +65,7 @@ export default function AdBanner({ position }: { position: "top" | "bottom" | "s
       adsbygoogle.push({});
       (window as unknown as Record<string, unknown[]>).adsbygoogle = adsbygoogle;
     } catch {}
-  }, [adSettings.adsense_enabled, adSettings.adsense_client_id, adSettings.adsense_ad_slot, adsenseLoaded]);
+  }, [adSettings.adsense_enabled, adSettings.adsense_client_id, adSettings.adsense_ad_slot]);
 
   if (!adSettings.adsense_enabled && !adSettings.admob_enabled) return null;
 

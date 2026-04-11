@@ -6,7 +6,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 // Admin emails - can be configured via env var or localStorage
-const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "admin@example.com")
+const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "yayass3r@gmail.com")
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
@@ -87,7 +87,7 @@ export interface SiteSettings {
 }
 
 export const DEFAULT_SETTINGS: SiteSettings = {
-  admin_emails: process.env.NEXT_PUBLIC_ADMIN_EMAILS || "admin@example.com",
+  admin_emails: process.env.NEXT_PUBLIC_ADMIN_EMAILS || "yayass3r@gmail.com",
   adsense_enabled: "false",
   adsense_client_id: "",
   adsense_ad_slot: "",

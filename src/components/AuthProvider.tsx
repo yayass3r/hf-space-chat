@@ -32,15 +32,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const updateAdminStatus = useCallback((email: string | undefined) => {
-    const admin = isAdminEmail(email);
-    setIsAdmin(admin);
+  const updateAdminStatus = useCallback((user: User | null) => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
 
-    // Also try to check profiles table for role
-    if (supabase && email) {
+    // Method 1: Check app_metadata.role (set via Auth Admin API)
+    const appMetaRole = (user.app_metadata as Record<string, unknown>)?.role;
+    if (appMetaRole === "admin") {
+      setIsAdmin(true);
+      return;
+    }
+
+    // Method 2: Check user_metadata.role
+    const userMetaRole = (user.user_metadata as Record<string, unknown>)?.role;
+    if (userMetaRole === "admin") {
+      setIsAdmin(true);
+      return;
+    }
+
+    // Method 3: Check email against admin emails list (env var + localStorage)
+    if (isAdminEmail(user.email)) {
+      setIsAdmin(true);
+      return;
+    }
+
+    // Method 4: Check profiles table (if it exists)
+    if (supabase && user.email) {
       checkProfilesTable().then((exists) => {
         if (exists) {
-          supabase!.from("profiles").select("role").eq("email", email).single()
+          supabase!.from("profiles").select("role").eq("id", user.id).single()
             .then(({ data }) => {
               if (data && data.role === "admin") {
                 setIsAdmin(true);
@@ -53,7 +75,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) {
-      setLoading(false);
+      // Use a microtask to avoid synchronous setState in effect
+      queueMicrotask(() => setLoading(false));
       return;
     }
 
@@ -62,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        updateAdminStatus(s.user.email);
+        updateAdminStatus(s.user);
       }
       setLoading(false);
     });
@@ -73,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(s);
         setUser(s?.user ?? null);
         if (s?.user) {
-          updateAdminStatus(s.user.email);
+          updateAdminStatus(s.user);
         } else {
           setIsAdmin(false);
         }
