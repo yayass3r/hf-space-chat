@@ -19,6 +19,7 @@ import {
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useAuth } from "./AuthProvider";
+import DeploymentHub from "./DeploymentHub";
 
 // ==================== FILE ICON HELPER ====================
 function FileIcon({ name }: { name: string }) {
@@ -395,13 +396,13 @@ export default function FullStackBuilder({ onBack }: { onBack: () => void }) {
     typeof window !== "undefined" ? document.documentElement.classList.contains("dark") : false
   );
   const [project, setProject] = useState<BuilderProject | null>(null);
-  const [activeTab, setActiveTab] = useState<"editor" | "preview" | "ai">("editor");
+  const [activeTab, setActiveTab] = useState<"editor" | "preview" | "ai" | "deploy">("editor");
   const [showTemplates, setShowTemplates] = useState(true);
   const [viewMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [savedProjects, setSavedProjects] = useState<BuilderProject[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
   const [selectedModel] = useState("Qwen/Qwen3-14B");
-  const [rightPanel, setRightPanel] = useState<"preview" | "ai">("preview");
+  const [rightPanel, setRightPanel] = useState<"preview" | "ai" | "deploy">("preview");
   const [addingFile, setAddingFile] = useState(false);
   const [newFileName, setNewFileName] = useState("");
 
@@ -895,6 +896,12 @@ export default function FullStackBuilder({ onBack }: { onBack: () => void }) {
             >
               🤖 AI
             </button>
+            <button
+              onClick={() => setActiveTab("deploy")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeTab === "deploy" ? (isDark ? "bg-emerald-600/20 text-emerald-400" : "bg-emerald-100 text-emerald-600") : (isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-gray-900")}`}
+            >
+              🚀 نشر
+            </button>
           </div>
 
           {/* Right panel toggle (for desktop split view) */}
@@ -911,6 +918,12 @@ export default function FullStackBuilder({ onBack }: { onBack: () => void }) {
               className={`px-2 py-1 rounded text-[10px] ${rightPanel === "ai" ? (isDark ? "bg-orange-600/20 text-orange-400" : "bg-orange-100 text-orange-600") : (isDark ? "text-slate-500" : "text-slate-400")}`}
             >
               AI
+            </button>
+            <button
+              onClick={() => setRightPanel("deploy")}
+              className={`px-2 py-1 rounded text-[10px] ${rightPanel === "deploy" ? (isDark ? "bg-emerald-600/20 text-emerald-400" : "bg-emerald-100 text-emerald-600") : (isDark ? "text-slate-500" : "text-slate-400")}`}
+            >
+              نشر
             </button>
           </div>
         </div>
@@ -932,7 +945,13 @@ export default function FullStackBuilder({ onBack }: { onBack: () => void }) {
 
           {/* Right panel (desktop: always visible, mobile: tab-based) */}
           <div className={`${activeTab === "editor" ? "hidden md:flex" : "flex-1"} ${isDark ? "border-slate-800" : "border-slate-200"} border-r flex flex-col w-full md:w-[45%]`}>
-            {rightPanel === "preview" ? (
+            {activeTab === "deploy" || rightPanel === "deploy" ? (
+              <DeploymentHub
+                project={project}
+                isDark={isDark}
+                onClose={() => { setRightPanel("preview"); setActiveTab("editor"); }}
+              />
+            ) : rightPanel === "preview" ? (
               <PreviewPanel
                 files={project?.files || []}
                 isDark={isDark}
