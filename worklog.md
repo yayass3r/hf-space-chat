@@ -28,3 +28,29 @@ Stage Summary:
 - HF Router API يعمل مع النماذج: Llama 3.2 1B, Qwen3 8B, Llama 3.1 8B, Qwen Coder 7B, etc.
 - البناء ناجح: `bun run build` ✓
 - Lint نظيف: لا أخطاء في src/
+---
+Task ID: 5
+Agent: Main Agent
+Task: Push updates to GitHub and deploy to Cloudflare Pages + Fix SQL Editor
+
+Work Log:
+- Checked git status: branch was 1 commit ahead of origin, .env was tracked
+- Removed .env from git tracking (GitHub push protection blocked HF token)
+- Amended commit without .env, force pushed successfully
+- Fixed wrangler.toml: changed pages_build_output_dir from .vercel/output/static to out
+- Discovered RLS infinite recursion (42P17) on profiles, projects, ai_chat_messages tables
+- Updated supabase.ts: added checkSupabaseConnection() using site_settings (has public RLS)
+- Updated ChatApp.tsx: connection check now uses site_settings instead of ai_chat_messages
+- Updated AdminDashboard.tsx: detect RLS errors, show warning with SQL Editor link
+- Added RLS policy status to system status panel in admin dashboard
+- Wrote comprehensive fix_rls_policies.sql script to /download/
+- Updated site_settings in Supabase via service role key with correct HF API values
+- Built and deployed successfully to Cloudflare Pages
+- Verified HF Inference API working (both streaming and non-streaming)
+
+Stage Summary:
+- Site: https://hf-space-chat.pages.dev (deployed and working)
+- HF API: Working with streaming support
+- Supabase: site_settings works (public RLS), but profiles/projects/messages have infinite RLS recursion
+- SQL fix script available at: /home/z/my-project/download/fix_rls_policies.sql
+- User needs to run the SQL script manually in Supabase SQL Editor
