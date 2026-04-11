@@ -947,7 +947,8 @@ export default function FullStackBuilder({ onBack }: { onBack: () => void }) {
           <div className={`${activeTab === "editor" ? "hidden md:flex" : "flex-1"} ${isDark ? "border-slate-800" : "border-slate-200"} border-r flex flex-col w-full md:w-[45%]`}>
             {activeTab === "deploy" || rightPanel === "deploy" ? (
               <DeploymentHub
-                project={project}
+                projectFiles={project?.files.map(f => ({ name: f.name, content: f.content }))}
+                projectName={project?.name}
                 isDark={isDark}
                 onClose={() => { setRightPanel("preview"); setActiveTab("editor"); }}
               />

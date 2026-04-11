@@ -7,12 +7,15 @@ import ChatApp from "@/components/ChatApp";
 import AdminDashboard from "@/components/AdminDashboard";
 import FullStackBuilder from "@/components/FullStackBuilder";
 import UserProfile from "@/components/UserProfile";
+import DeploymentHub from "@/components/DeploymentHub";
+
+type AppMode = "chat" | "builder" | "deploy";
 
 function AppContent() {
   const { user, isAdmin, loading } = useAuth();
   const [showAdmin, setShowAdmin] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [appMode, setAppMode] = useState<"chat" | "builder">("chat");
+  const [appMode, setAppMode] = useState<AppMode>("chat");
 
   // Loading state
   if (loading) {
@@ -54,7 +57,20 @@ function AppContent() {
     return <FullStackBuilder onBack={() => setAppMode("chat")} />;
   }
 
-  // Chat mode with builder tab
+  // Deploy mode - standalone deployment hub
+  if (appMode === "deploy") {
+    return (
+      <DeploymentHub
+        onClose={() => setAppMode("chat")}
+        standalone={true}
+      />
+    );
+  }
+
+  // Chat mode with builder/deploy tabs
+  // Use currentMode to avoid TypeScript narrowing issues after early returns
+  const currentMode = appMode as AppMode;
+
   return (
     <div className="relative h-screen">
       {/* Mode toggle floating button */}
@@ -62,7 +78,7 @@ function AppContent() {
         <button
           onClick={() => setAppMode("chat")}
           className={`px-4 py-2 rounded-xl text-xs font-medium transition-all ${
-            appMode === "chat"
+            currentMode === "chat"
               ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-lg shadow-orange-500/20"
               : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
           }`}
@@ -71,9 +87,23 @@ function AppContent() {
         </button>
         <button
           onClick={() => setAppMode("builder")}
-          className="px-4 py-2 rounded-xl text-xs font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+          className={`px-4 py-2 rounded-xl text-xs font-medium transition-all ${
+            currentMode === "builder"
+              ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/20"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+          }`}
         >
           🏗️ بناء
+        </button>
+        <button
+          onClick={() => setAppMode("deploy")}
+          className={`px-4 py-2 rounded-xl text-xs font-medium transition-all ${
+            currentMode === "deploy"
+              ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+          }`}
+        >
+          🚀 نشر
         </button>
       </div>
 

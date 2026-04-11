@@ -8,7 +8,7 @@ import MarkdownMessage from "@/components/MarkdownMessage";
 import { UserAvatar } from "@/components/UserProfile";
 import type { Message, ChatSession, UserProfile } from "@/lib/types";
 
-export default function ChatApp({ onAdminClick, onProfileClick }: { onAdminClick: () => void; onProfileClick: () => void }) {
+export default function ChatApp({ onAdminClick, onProfileClick }: { onAdminClick: () => void; onProfileClick: () => void; onDeployClick?: () => void }) {
   const { user, isAdmin, signOut } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
