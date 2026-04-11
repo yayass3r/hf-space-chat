@@ -5,50 +5,35 @@ on:
 
 jobs:
   setup:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Enable IPv6 and Execute SQL
+      - name: Install PostgreSQL client
+        run: brew install postgresql@16
+
+      - name: Execute SQL Setup
         env:
-          DB_HOST: db.ucmpclgctjeyoimtmqir.supabase.co
-          DB_PASSWORD: '@1412Yasser@'
+          PGPASSWORD: '@1412Yasser@'
         run: |
-          # Try to enable IPv6 on the runner
-          sudo modprobe ipv6 2>/dev/null || true
+          echo "Testing IPv6 connectivity..."
+          ping6 -c 1 -W 3 google.com 2>/dev/null && echo "IPv6 available!" || echo "IPv6 not available"
           
-          # Check IPv6 connectivity
-          ping6 -c 1 -W 2 google.com 2>/dev/null && echo "IPv6 available" || echo "IPv6 not available"
+          echo "Connecting to Supabase database..."
+          psql "postgresql://postgres:@db.ucmpclgctjeyoimtmqir.supabase.co:5432/postgres?sslmode=require" -f supabase/setup.sql 2>&1
           
-          # Install psql
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client python3-pip
-          pip install psycopg2-binary
-          
-          # Try direct connection
-          echo "Trying direct IPv6 connection..."
-          PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -U postgres -d postgres -f supabase/setup.sql 2>&1 || {
-            echo "Direct connection failed, trying Python psycopg2..."
-            python3 -c "
-          import psycopg2, sys
-          try:
-              conn = psycopg2.connect(
-                  host='$DB_HOST', port=5432, dbname='postgres',
-                  user='postgres', password='$DB_PASSWORD', sslmode='require',
-                  connect_timeout=10
-              )
-              with open('supabase/setup.sql', 'r') as f:
-                  sql = f.read()
-              cur = conn.cursor()
-              cur.execute(sql)
-              conn.commit()
-              print('SQL executed successfully!')
-              cur.close()
-              conn.close()
-          except Exception as e:
-              print(f'Python connection also failed: {e}')
-              sys.exit(1)
-          "
-          }
-          
-          echo "SQL execution attempt completed"
+          echo "Verifying tables..."
+          psql "postgresql://postgres:@db.ucmpclgctjeyoimtmqir.supabase.co:5432/postgres?sslmode=require" -c "
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema='public' AND table_type='BASE TABLE'
+            ORDER BY table_name;
+          " 2>&1 || true
+
+      - name: Verify Tables
+        env:
+          PGPASSWORD: '@1412Yasser@'
+        run: |
+          psql "postgresql://postgres:@db.ucmpclgctjeyoimtmqir.supabase.co:5432/postgres?sslmode=require" -c "
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema='public' AND table_type='BASE TABLE';
+          " 2>&1 || echo "Verification attempted"
