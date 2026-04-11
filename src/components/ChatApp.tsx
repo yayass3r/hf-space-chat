@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { supabase, isSupabaseConfigured, loadSettings, type SiteSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured, loadSettings, checkSupabaseConnection, type SiteSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import AdBanner from "@/components/AdBanner";
 import MarkdownMessage from "@/components/MarkdownMessage";
@@ -55,23 +55,24 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
     async function checkConnection() {
       if (!supabase) { if (!cancelled) setDbStatus("disconnected"); return; }
       try {
-        const { error: err } = await supabase!.from("ai_chat_messages").select("id").limit(1);
+        // Use site_settings for connection check (has public RLS, no recursion risk)
+        const connected = await checkSupabaseConnection();
         if (cancelled) return;
-        if (err) { setDbStatus("disconnected"); }
-        else {
-          setDbStatus("connected");
-          if (user) {
-            try {
-              const { data, error: err2 } = await supabase!
-                .from("projects")
-                .select("id, name, created_at")
-                .eq("template", "chat")
-                .eq("user_id", user!.id)
-                .order("created_at", { ascending: false })
-                .limit(50);
-              if (!cancelled && !err2 && data) setSessions(data as ChatSession[]);
-            } catch {}
-          }
+        if (!connected) { setDbStatus("disconnected"); return; }
+        
+        setDbStatus("connected");
+        if (user) {
+          try {
+            const { data, error: err2 } = await supabase!
+              .from("projects")
+              .select("id, name, created_at")
+              .eq("template", "chat")
+              .eq("user_id", user!.id)
+              .order("created_at", { ascending: false })
+              .limit(50);
+            // If projects query fails due to RLS, just skip session loading
+            if (!cancelled && !err2 && data) setSessions(data as ChatSession[]);
+          } catch {}
         }
       } catch { if (!cancelled) setDbStatus("disconnected"); }
     }

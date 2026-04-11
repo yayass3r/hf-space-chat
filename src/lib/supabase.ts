@@ -33,7 +33,7 @@ export function isAdminEmail(email: string | undefined): boolean {
   return false;
 }
 
-// Check if profiles table exists (cached)
+// Check if profiles table exists and RLS works (cached)
 let _profilesTableExists: boolean | null = null;
 
 export async function checkProfilesTable(): Promise<boolean> {
@@ -41,6 +41,12 @@ export async function checkProfilesTable(): Promise<boolean> {
   if (!supabase) return false;
   try {
     const { error } = await supabase.from("profiles").select("id").limit(1);
+    // RLS infinite recursion returns 42P17 - treat as "table not usable"
+    if (error && (error.code === "42P17" || error.message?.includes("infinite recursion"))) {
+      console.warn("[Supabase] profiles table RLS has infinite recursion - needs SQL fix");
+      _profilesTableExists = false;
+      return false;
+    }
     _profilesTableExists = !error;
     return _profilesTableExists;
   } catch {
@@ -61,6 +67,17 @@ export async function checkSettingsTable(): Promise<boolean> {
     return _settingsTableExists;
   } catch {
     _settingsTableExists = false;
+    return false;
+  }
+}
+
+// Check if Supabase is reachable (uses site_settings which has public RLS)
+export async function checkSupabaseConnection(): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase.from("site_settings").select("key").limit(1);
+    return !error;
+  } catch {
     return false;
   }
 }

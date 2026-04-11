@@ -106,12 +106,24 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
   const loadStats = useCallback(async () => {
     if (!supabase) return;
     try {
+      // Try to load stats - gracefully handle RLS errors
       const [usersRes, sessionsRes, messagesRes, todayRes] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("projects").select("id", { count: "exact", head: true }),
         supabase.from("ai_chat_messages").select("id", { count: "exact", head: true }),
         supabase.from("ai_chat_messages").select("id").gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
       ]);
+
+      // Check for RLS recursion errors
+      const hasRlsError = [usersRes, sessionsRes, messagesRes, todayRes].some(
+        r => r.error?.code === "42P17" || r.error?.message?.includes("infinite recursion")
+      );
+
+      if (hasRlsError) {
+        // RLS has issues - show connection as working but stats unavailable
+        setStats({ totalUsers: -1, totalSessions: -1, totalMessages: -1, todayMessages: -1, activeUsers: -1 });
+        return;
+      }
 
       setStats({
         totalUsers: usersRes.count || 0,
@@ -281,6 +293,17 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
                 <StatCard title="رسائل اليوم" value={stats.todayMessages} icon="5" color="purple" isDark={isDark} />
               </div>
 
+              {/* RLS Warning */}
+              {stats.totalUsers === -1 && (
+                <div className="px-4 py-3 rounded-xl bg-amber-900/20 border border-amber-700 text-amber-400 text-sm">
+                  <p className="font-semibold mb-1">تحذير: سياسات RLS بحاجة لإصلاح</p>
+                  <p className="text-xs text-amber-500">جداول profiles/projects/messages تعاني من حلقة لا نهائية في سياسات الأمان. يرجى تشغيل سكريبت fix_rls_policies.sql في Supabase SQL Editor.</p>
+                  <a href="https://supabase.com/dashboard/project/ucmpclgctjeyoimtmqir/sql/new" target="_blank" rel="noopener noreferrer" className="inline-block mt-2 px-3 py-1 rounded-lg bg-amber-700/30 hover:bg-amber-700/50 text-amber-300 text-xs transition-colors">
+                    فتح SQL Editor ←
+                  </a>
+                </div>
+              )}
+
               {/* Quick Actions */}
               <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border p-5`}>
                 <h4 className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"} mb-3`}>إجراءات سريعة</h4>
@@ -305,6 +328,7 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
                 <h4 className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"} mb-3`}>حالة النظام</h4>
                 <div className="space-y-3">
                   <StatusRow label="Supabase" status={isSupabaseConfigured ? "connected" : "disconnected"} isDark={isDark} />
+                  <StatusRow label="RLS Policies" status={stats.totalUsers === -1 ? "warning" : "connected"} isDark={isDark} />
                   <StatusRow label="HF Inference API" status={settings.hf_space_url !== "https://your-space.hf.space" ? "connected" : "warning"} isDark={isDark} />
                   <StatusRow label="HF API Token" status={settings.hf_api_token ? "connected" : "warning"} isDark={isDark} />
                   <StatusRow label="AdSense" status={settings.adsense_enabled === "true" ? "connected" : "inactive"} isDark={isDark} />
@@ -564,7 +588,7 @@ function StatCard({ title, value, icon, color, isDark }: { title: string; value:
       <div className="flex items-center justify-between mb-2">
         <span className="text-2xl">{icon}</span>
       </div>
-      <p className={`text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{value.toLocaleString("ar-SA")}</p>
+      <p className={`text-2xl font-bold ${value === -1 ? "text-amber-400" : isDark ? "text-white" : "text-slate-900"}`}>{value === -1 ? "⚠" : value.toLocaleString("ar-SA")}</p>
       <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"} mt-1`}>{title}</p>
     </div>
   );
