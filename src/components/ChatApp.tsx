@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured, loadSettings, type SiteSettings, DEFAULT_SETTINGS } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import AdBanner from "@/components/AdBanner";
-import { DEFAULT_SETTINGS, type SiteSettings } from "@/lib/types";
 import type { Message, ChatSession } from "@/lib/types";
 
 export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) {
-  const { user, profile, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -22,22 +21,11 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load site settings
+  // Load site settings (uses localStorage fallback + Supabase)
   useEffect(() => {
-    if (!supabase) return;
     async function load() {
-      try {
-        const { data } = await supabase!.from("site_settings").select("key, value");
-        if (data) {
-          const s = { ...DEFAULT_SETTINGS };
-          data.forEach((item: { key: string; value: string }) => {
-            if (item.key in s) {
-              (s as Record<string, string>)[item.key] = item.value;
-            }
-          });
-          setSiteSettings(s);
-        }
-      } catch { /* use defaults */ }
+      const s = await loadSettings();
+      setSiteSettings(s);
     }
     load();
   }, []);
