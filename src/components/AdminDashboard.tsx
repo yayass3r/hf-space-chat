@@ -94,7 +94,7 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
   }
 
   const SQL_INSTRUCTIONS = `-- انسخ هذا السكريبت ونفذه في Supabase SQL Editor
--- https://supabase.com/dashboard/project/uuslujxtsrtbvjihcdzw/sql
+-- https://supabase.com/dashboard/project/ucmpclgctjeyoimtmqir/sql
 
 -- 1. إنشاء جدول الملفات الشخصية
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -374,7 +374,7 @@ CREATE TRIGGER on_auth_user_created
                 </ol>
               </div>
 
-              <a href="https://supabase.com/dashboard/project/uuslujxtsrtbvjihcdzw/sql"
+              <a href="https://supabase.com/dashboard/project/ucmpclgctjeyoimtmqir/sql"
                 target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>

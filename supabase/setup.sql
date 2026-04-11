@@ -1,5 +1,6 @@
 -- =============================================
 -- SQL Setup Script for HF Space Chat
+-- Project: ucmpclgctjeyoimtmqir
 -- Run this in Supabase SQL Editor
 -- =============================================
 
@@ -17,20 +18,30 @@ CREATE TABLE IF NOT EXISTS public.site_settings (
   value TEXT NOT NULL DEFAULT ''
 );
 
--- 3. Add user_id column to projects table (if not exists)
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'user_id'
-  ) THEN
-    ALTER TABLE public.projects ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
-  END IF;
-END $$;
+-- 3. Create projects table (for chat sessions)
+CREATE TABLE IF NOT EXISTS public.projects (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL DEFAULT 'New Chat',
+  template TEXT NOT NULL DEFAULT 'chat',
+  is_public BOOLEAN NOT NULL DEFAULT false,
+  is_deployed BOOLEAN NOT NULL DEFAULT false,
+  status TEXT NOT NULL DEFAULT 'active',
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
--- 4. Insert default site settings
+-- 4. Create ai_chat_messages table (for chat messages)
+CREATE TABLE IF NOT EXISTS public.ai_chat_messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID REFERENCES public.projects(id) ON DELETE CASCADE NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+  content TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 5. Insert default site settings
 INSERT INTO public.site_settings (key, value) VALUES
-  ('admin_emails', 'admin@example.com'),
+  ('admin_emails', 'yayass3r@gmail.com'),
   ('adsense_enabled', 'false'),
   ('adsense_client_id', ''),
   ('adsense_ad_slot', ''),
@@ -42,13 +53,13 @@ INSERT INTO public.site_settings (key, value) VALUES
   ('hf_api_path', '/api/predict')
 ON CONFLICT (key) DO NOTHING;
 
--- 5. Enable Row Level Security
+-- 6. Enable Row Level Security
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_chat_messages ENABLE ROW LEVEL SECURITY;
 
--- 6. RLS Policies for profiles
+-- 7. RLS Policies for profiles
 -- Users can read their own profile
 CREATE POLICY "Users can read own profile" ON public.profiles
   FOR SELECT USING (auth.uid() = id);
@@ -79,7 +90,7 @@ CREATE POLICY "Admins can update any profile" ON public.profiles
 CREATE POLICY "Allow profile insert on signup" ON public.profiles
   FOR INSERT WITH CHECK (auth.uid() = id);
 
--- 7. RLS Policies for site_settings
+-- 8. RLS Policies for site_settings
 -- Anyone authenticated can read settings
 CREATE POLICY "Authenticated users can read settings" ON public.site_settings
   FOR SELECT USING (auth.role() = 'authenticated');
@@ -101,7 +112,7 @@ CREATE POLICY "Admins can update settings" ON public.site_settings
     )
   );
 
--- 8. RLS Policies for projects (user-scoped)
+-- 9. RLS Policies for projects (user-scoped)
 -- Users can read their own projects
 CREATE POLICY "Users can read own projects" ON public.projects
   FOR SELECT USING (auth.uid() = user_id);
@@ -127,7 +138,7 @@ CREATE POLICY "Admins can read all projects" ON public.projects
     )
   );
 
--- 9. RLS Policies for ai_chat_messages
+-- 10. RLS Policies for ai_chat_messages
 -- Users can read messages in their own projects
 CREATE POLICY "Users can read own messages" ON public.ai_chat_messages
   FOR SELECT USING (
@@ -155,7 +166,7 @@ CREATE POLICY "Admins can read all messages" ON public.ai_chat_messages
     )
   );
 
--- 10. Function to auto-create profile on user signup
+-- 11. Function to auto-create profile on user signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -176,22 +187,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 11. Trigger for auto profile creation
+-- 12. Trigger for auto profile creation
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- =============================================
--- IMPORTANT: After running this script:
--- 1. Go to Supabase → Authentication → Providers
---    and make sure Email provider is enabled
--- 2. Go to Supabase → Authentication → Settings
---    and disable "Confirm email" if you want
---    instant access (or keep it for security)
--- 3. Update the admin_emails setting with your
---    actual admin email:
---    UPDATE public.site_settings
---    SET value = 'your-admin@email.com'
---    WHERE key = 'admin_emails';
+-- After running this script:
+-- 1. Go to Authentication → Providers → enable Email
+-- 2. Go to Authentication → Settings → disable "Confirm email" for instant access
 -- =============================================

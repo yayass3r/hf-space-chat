@@ -2,8 +2,8 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ucmpclgctjeyoimtmqir.supabase.co";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjbXBjbGdjdGpleW9pbXRtcWlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5MjI5NjYsImV4cCI6MjA5MTQ5ODk2Nn0.-243x1_Hqnml5smR3aqSUFS8uuglw3f1wSlfqZNcp-k";
 
 // Admin emails - can be configured via env var or localStorage
 const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "yayass3r@gmail.com")
