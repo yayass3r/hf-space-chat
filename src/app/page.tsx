@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback, startTransition } from "react";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
 import LoginPage from "@/components/LoginPage";
 import ChatApp from "@/components/ChatApp";
@@ -8,15 +7,12 @@ import AdminDashboard from "@/components/AdminDashboard";
 import FullStackBuilder from "@/components/FullStackBuilder";
 import UserProfile from "@/components/UserProfile";
 import DeploymentHub from "@/components/DeploymentHub";
-import AppLayout, { HomePage, type AppPage } from "@/components/AppLayout";
+import AppLayout, { HomePage } from "@/components/AppLayout";
+import { HashRouterProvider, useRouter } from "@/components/HashRouter";
 
 function AppContent() {
   const { user, isAdmin, loading } = useAuth();
-  const [currentPage, setCurrentPage] = useState<AppPage>("home");
-
-  const handleNavigate = useCallback((page: AppPage) => {
-    startTransition(() => { setCurrentPage(page); });
-  }, []);
+  const { currentPage, navigate } = useRouter();
 
   // Loading state
   if (loading) {
@@ -49,7 +45,6 @@ function AppContent() {
       case "home":
         return (
           <HomePage
-            onNavigate={handleNavigate}
             user={user}
             isAdmin={isAdmin}
           />
@@ -57,32 +52,31 @@ function AppContent() {
       case "chat":
         return (
           <ChatApp
-            onAdminClick={() => handleNavigate("admin")}
-            onProfileClick={() => handleNavigate("profile")}
+            onAdminClick={() => navigate("admin")}
+            onProfileClick={() => navigate("profile")}
             embedded={true}
           />
         );
       case "builder":
-        return <FullStackBuilder onBack={() => handleNavigate("home")} />;
+        return <FullStackBuilder onBack={() => navigate("home")} />;
       case "deploy":
         return (
           <DeploymentHub
-            onClose={() => handleNavigate("home")}
+            onClose={() => navigate("home")}
             standalone={true}
           />
         );
       case "profile":
-        return <UserProfile onClose={() => handleNavigate("home")} />;
+        return <UserProfile onClose={() => navigate("home")} />;
       case "admin":
         if (!isAdmin) {
-          handleNavigate("home");
+          navigate("home");
           return null;
         }
-        return <AdminDashboard onClose={() => handleNavigate("home")} />;
+        return <AdminDashboard onClose={() => navigate("home")} />;
       default:
         return (
           <HomePage
-            onNavigate={handleNavigate}
             user={user}
             isAdmin={isAdmin}
           />
@@ -91,8 +85,10 @@ function AppContent() {
   };
 
   return (
-    <AppLayout currentPage={currentPage} onNavigate={handleNavigate}>
-      {renderPageContent()}
+    <AppLayout>
+      <div key={currentPage} className="animate-page-in h-full">
+        {renderPageContent()}
+      </div>
     </AppLayout>
   );
 }
@@ -100,7 +96,9 @@ function AppContent() {
 export default function Home() {
   return (
     <AuthProvider>
-      <AppContent />
+      <HashRouterProvider>
+        <AppContent />
+      </HashRouterProvider>
     </AuthProvider>
   );
 }

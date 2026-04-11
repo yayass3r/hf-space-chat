@@ -181,3 +181,51 @@ Stage Summary:
 - انتقال سلس بين الصفحات مع URL hash support
 - الملفات الجديدة: AppLayout.tsx
 - الملفات المعدلة: page.tsx, ChatApp.tsx, globals.css
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Implement Multi-Page Hash-Based Routing for HF Space Chat
+
+Work Log:
+- Read existing files (page.tsx, AppLayout.tsx, AuthProvider.tsx, globals.css) to understand current state-based routing architecture
+- Created HashRouter.tsx with:
+  - AppPage type exported ("home" | "chat" | "builder" | "deploy" | "profile" | "admin" | "settings")
+  - RouterContext with currentPage, navigate, goBack, goForward, canGoBack, canGoForward
+  - useRouter() hook for consuming router state
+  - HashRouterProvider that reads initial page from window.location.hash on mount
+  - popstate event listener for browser back/forward navigation
+  - Internal history tracking (historyRef, historyIndexRef) for back/forward support
+  - Document title updates based on current page (Arabic page names)
+  - Initial hash set to #home if no valid hash exists
+  - Scroll to top on page change
+  - startTransition wrapping for all setState calls (React 19 ESLint compliance)
+  - isNavigatingRef guard to prevent concurrent navigation
+- Updated page.tsx:
+  - Wrapped with HashRouterProvider inside AuthProvider
+  - Replaced useState<AppPage> with useRouter() hook
+  - Removed handleNavigate callback (router.navigate handles it)
+  - HomePage no longer receives onNavigate prop (uses useRouter internally)
+  - Added key={currentPage} and animate-page-in class for page transitions
+  - Kept loading state, auth gate, and all existing component props wiring
+- Updated AppLayout.tsx:
+  - Removed currentPage and onNavigate props (uses useRouter() hook instead)
+  - Removed AppPage type export (now from HashRouter)
+  - Removed hash-based navigation useEffect and manual hash setting in handleNavigate
+  - HomePage now uses useRouter().navigate internally instead of onNavigate prop
+  - Added MobileBottomNav component with 5 items (الرئيسية, المحادثة, بناء, نشر, الملف)
+  - Added breadcrumb-style page title in header with "الرئيسية > [page]" pattern
+  - Added pb-14 lg:pb-0 padding on main content area for mobile bottom nav
+  - Kept all existing functionality: sidebar collapse, dark mode toggle, user profile, DB status, fullscreen pages
+- Verified lint: no errors in src/ directory
+
+Stage Summary:
+- Hash-based routing fully implemented with browser back/forward support
+- URL hash updates on navigation (#home, #chat, #builder, #deploy, #profile, #admin)
+- Page transitions animated with animate-page-in class
+- Mobile bottom navigation bar added (5 tabs, hidden on desktop)
+- Breadcrumb navigation in header showing current page path
+- Document title updates dynamically with Arabic page names
+- All navigation uses useRouter() hook - no more prop drilling for navigation
+- Files created: src/components/HashRouter.tsx
+- Files modified: src/app/page.tsx, src/components/AppLayout.tsx

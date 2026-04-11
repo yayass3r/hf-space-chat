@@ -2,13 +2,12 @@
 
 import { useState, useEffect, useCallback, startTransition } from "react";
 import { useAuth } from "./AuthProvider";
+import { useRouter, type AppPage } from "./HashRouter";
 import { supabase, checkSupabaseConnection, loadSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS, type SiteSettings } from "@/lib/supabase";
 import type { UserProfile } from "@/lib/types";
 import { UserAvatar } from "./UserProfile";
 
-// ==================== PAGE TYPES ====================
-export type AppPage = "home" | "chat" | "builder" | "deploy" | "profile" | "admin" | "settings";
-
+// ==================== NAV ITEMS CONFIG ====================
 interface NavItem {
   id: AppPage;
   label: string;
@@ -18,7 +17,6 @@ interface NavItem {
   color: string;
 }
 
-// ==================== NAV ITEMS CONFIG ====================
 const NAV_ITEMS: NavItem[] = [
   {
     id: "home",
@@ -107,7 +105,8 @@ function ThemeToggle({ isDark }: { isDark: boolean }) {
 }
 
 // ==================== HOME PAGE ====================
-function HomePage({ onNavigate, user, isAdmin }: { onNavigate: (page: AppPage) => void; user: { email?: string; id?: string; created_at?: string } | null; isAdmin: boolean; }) {
+function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; created_at?: string } | null; isAdmin: boolean; }) {
+  const { navigate } = useRouter();
   const isDark = typeof window !== "undefined" && document.documentElement.classList.contains("dark");
   const [stats, setStats] = useState({ sessions: 0, messages: 0, projects: 0 });
   const [siteSettings, setSiteSettings] = useState<SiteSettings>({ ...DEFAULT_SETTINGS });
@@ -168,7 +167,7 @@ function HomePage({ onNavigate, user, isAdmin }: { onNavigate: (page: AppPage) =
             </div>
             {isAdmin && (
               <button
-                onClick={() => onNavigate("admin")}
+                onClick={() => navigate("admin")}
                 className="sm:mr-auto px-4 py-2 rounded-xl bg-white/20 backdrop-blur-sm text-white text-sm font-medium hover:bg-white/30 transition-colors"
               >
                 🛡️ لوحة التحكم
@@ -200,7 +199,7 @@ function HomePage({ onNavigate, user, isAdmin }: { onNavigate: (page: AppPage) =
             {quickActions.map((action) => (
               <button
                 key={action.page}
-                onClick={() => onNavigate(action.page)}
+                onClick={() => navigate(action.page)}
                 className={`group p-4 rounded-2xl border-2 transition-all text-right hover:shadow-lg ${
                   isDark
                     ? "bg-slate-800/50 border-slate-700 hover:border-slate-500"
@@ -242,7 +241,7 @@ function HomePage({ onNavigate, user, isAdmin }: { onNavigate: (page: AppPage) =
             <div className="text-4xl mb-3">📊</div>
             <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>ابدأ محادثة أو أنشئ مشروعاً لمشاهدة نشاطك هنا</p>
             <button
-              onClick={() => onNavigate("chat")}
+              onClick={() => navigate("chat")}
               className="mt-4 px-6 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 text-white text-sm font-medium shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all"
             >
               ابدأ محادثة
@@ -254,13 +253,85 @@ function HomePage({ onNavigate, user, isAdmin }: { onNavigate: (page: AppPage) =
   );
 }
 
+// ==================== MOBILE BOTTOM NAV ====================
+function MobileBottomNav({ currentPage, navigate }: { currentPage: AppPage; navigate: (page: AppPage) => void }) {
+  const mobileNavItems: { id: AppPage; label: string; icon: React.ReactNode }[] = [
+    {
+      id: "home",
+      label: "الرئيسية",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      ),
+    },
+    {
+      id: "chat",
+      label: "المحادثة",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      ),
+    },
+    {
+      id: "builder",
+      label: "بناء",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+        </svg>
+      ),
+    },
+    {
+      id: "deploy",
+      label: "نشر",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+        </svg>
+      ),
+    },
+    {
+      id: "profile",
+      label: "الملف",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      ),
+    },
+  ];
+
+  return (
+    <nav className="mobile-bottom-nav lg:hidden" dir="rtl">
+      <div className="flex items-center justify-around">
+        {mobileNavItems.map((item) => {
+          const isActive = currentPage === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => navigate(item.id)}
+              className={`flex flex-col items-center gap-1 py-1 px-3 rounded-lg transition-colors ${
+                isActive
+                  ? "text-orange-600 dark:text-orange-400"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              }`}
+            >
+              {item.icon}
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
 // ==================== MAIN APP LAYOUT ====================
-export default function AppLayout({ children, currentPage, onNavigate }: {
-  children: React.ReactNode;
-  currentPage: AppPage;
-  onNavigate: (page: AppPage) => void;
-}) {
+export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, signOut } = useAuth();
+  const { currentPage, navigate } = useRouter();
   const [isDark, setIsDark] = useState(() =>
     typeof window !== "undefined" ? document.documentElement.classList.contains("dark") : false
   );
@@ -309,26 +380,12 @@ export default function AppLayout({ children, currentPage, onNavigate }: {
     load();
   }, []);
 
-  // Handle URL hash navigation
-  useEffect(() => {
-    const handleHash = () => {
-      const hash = window.location.hash.replace("#", "");
-      if (hash && NAV_ITEMS.some(item => item.id === hash)) {
-        onNavigate(hash as AppPage);
-      }
-    };
-    handleHash();
-    window.addEventListener("hashchange", handleHash);
-    return () => window.removeEventListener("hashchange", handleHash);
-  }, [onNavigate]);
-
   const handleNavigate = useCallback((page: AppPage) => {
-    onNavigate(page);
-    window.location.hash = page;
+    navigate(page);
     setMobileMenuOpen(false);
-  }, [onNavigate]);
+  }, [navigate]);
 
-  // Get page title
+  // Get page title and breadcrumb
   const currentPageItem = NAV_ITEMS.find(item => item.id === currentPage);
   const pageTitle = currentPageItem?.label || "الرئيسية";
 
@@ -338,7 +395,7 @@ export default function AppLayout({ children, currentPage, onNavigate }: {
   const statusColor = { checking: "bg-yellow-400", connected: "bg-emerald-400", disconnected: "bg-red-400" };
   const statusText = { checking: "جاري الفحص...", connected: "متصل", disconnected: "غير متصل" };
 
-  // Check if current page is fullscreen (builder, admin, profile)
+  // Check if current page is fullscreen (builder, profile)
   const isFullscreenPage = currentPage === "builder" || currentPage === "profile";
 
   // For fullscreen pages, render without layout
@@ -466,7 +523,7 @@ export default function AppLayout({ children, currentPage, onNavigate }: {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 pb-14 lg:pb-0">
         {/* Top Header Bar */}
         <header className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
           <div className="flex items-center gap-3">
@@ -480,7 +537,23 @@ export default function AppLayout({ children, currentPage, onNavigate }: {
               </svg>
             </button>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">{pageTitle}</h2>
+              {/* Breadcrumb-style page title */}
+              <div className="flex items-center gap-2">
+                {currentPage !== "home" && (
+                  <>
+                    <button
+                      onClick={() => navigate("home")}
+                      className="text-xs text-slate-400 dark:text-slate-500 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
+                    >
+                      الرئيسية
+                    </button>
+                    <svg className="w-3 h-3 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </>
+                )}
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">{pageTitle}</h2>
+              </div>
               <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 <span className="flex items-center gap-1">
                   <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]}`}></span>
@@ -490,8 +563,8 @@ export default function AppLayout({ children, currentPage, onNavigate }: {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Quick navigation for mobile */}
-            <div className="flex items-center gap-1 lg:hidden">
+            {/* Quick navigation for mobile (hidden since we have bottom nav now) */}
+            <div className="hidden items-center gap-1 lg:hidden">
               {(["home", "chat", "builder", "deploy"] as AppPage[]).map((page) => {
                 const item = NAV_ITEMS.find(i => i.id === page);
                 if (!item) return null;
@@ -519,6 +592,9 @@ export default function AppLayout({ children, currentPage, onNavigate }: {
           {children}
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav currentPage={currentPage} navigate={navigate} />
     </div>
   );
 }
