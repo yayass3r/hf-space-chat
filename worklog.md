@@ -74,3 +74,29 @@ Stage Summary:
 - السبب: القيم الخاطئة في Supabase site_settings تجعل التطبيق يرسل الطلب إلى URL وهمي
 - الإصلاح في الكود: اكتشاف القيم الوهمية تلقائياً واستبدالها
 - يحتاج تطبيق SQL script يدوياً في Supabase SQL Editor
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: إضافة ميزة Full-Stack Builder متكاملة
+
+Work Log:
+- أنشأ ملف builder-templates.ts مع 7 قوالب مشاريع (React, Landing Page, Dashboard, Express API, Python API, Full-Stack App, Blank)
+- أنشأ ملف FullStackBuilder.tsx مع:
+  - محرر أكواد مع تلوين بناء الجملة (react-syntax-highlighter overlay)
+  - معاينة مباشرة في iframe معزل
+  - لوحة دردشة AI لتوليد الأكواد
+  - شجرة ملفات مع إضافة/حذف
+  - تصدير المشاريع (HTML + كل الملفات)
+  - حفظ/تحميل من localStorage
+  - وضع مظلم/فاتح
+- حدّث page.tsx مع زر تبديل عائم (محادثة/بناء)
+- حدّث globals.css مع أنماط Builder
+- أصلح أخطاء ESLint (set-state-in-effect, unused vars, type narrowing)
+- بناء ناجح ورفع إلى GitHub (commit 3e6a662)
+
+Stage Summary:
+- ميزة Full-Stack Builder مكتملة مع محرر ومعاينة وتوليد AI وقوالب
+- 7 قوالب مشاريع جاهزة للاستخدام الفوري
+- الملفات الجديدة: builder-templates.ts, FullStackBuilder.tsx
+- الملفات المعدلة: page.tsx, globals.css
