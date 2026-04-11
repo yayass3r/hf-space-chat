@@ -138,3 +138,56 @@ iframe[title="Preview"] {
 .template-card:hover {
   transform: translateY(-2px);
 }
+
+/* ==================== User Profile Styles ==================== */
+
+/* Profile cover background pattern */
+.profile-cover-pattern {
+  background-image: radial-gradient(circle at 25% 25%, rgba(255,255,255,0.1) 0%, transparent 50%),
+                    radial-gradient(circle at 75% 75%, rgba(255,255,255,0.08) 0%, transparent 50%);
+}
+
+/* Avatar hover effect */
+.profile-avatar-wrapper:hover .profile-avatar-edit {
+  opacity: 1;
+}
+
+.profile-avatar-edit {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Profile tab content transition */
+@keyframes profileTabIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Toggle switch animation */
+.toggle-switch-thumb {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Info row hover */
+.info-row:hover {
+  background-color: rgba(249, 115, 22, 0.04);
+}
+
+/* Timeline connector line */
+.timeline-connector {
+  position: relative;
+}
+
+.timeline-connector::after {
+  content: '';
+  position: absolute;
+  right: 15px;
+  top: 36px;
+  bottom: -8px;
+  width: 2px;
+  background: linear-gradient(to bottom, #e2e8f0, transparent);
+}
+
+.dark .timeline-connector::after {
+  background: linear-gradient(to bottom, #334155, transparent);
+}

@@ -427,45 +427,67 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
                 </div>
               ) : (
                 <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border overflow-hidden`}>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className={`border-b ${isDark ? "border-slate-800" : "border-slate-200"}`}>
-                        <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>البريد الإلكتروني</th>
-                        <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>الدور</th>
-                        <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>تاريخ التسجيل</th>
-                        <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>إجراءات</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.map((u) => (
-                        <tr key={u.id} className={`border-b ${isDark ? "border-slate-800/50 hover:bg-slate-800/30" : "border-slate-100 hover:bg-slate-50"}`}>
-                          <td className={`px-4 py-3 ${isDark ? "text-white" : "text-slate-900"}`} dir="ltr">{u.email}</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              u.role === "admin" ? "bg-orange-500/20 text-orange-400" : isDark ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-600"
-                            }`}>
-                              {u.role === "admin" ? "مسؤول" : "مستخدم"}
-                            </span>
-                          </td>
-                          <td className={`px-4 py-3 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`} dir="ltr">
-                            {new Date(u.created_at).toLocaleDateString("ar-SA")}
-                          </td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => updateUserRole(u.id, u.role === "admin" ? "user" : "admin")}
-                              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                                u.role === "admin"
-                                  ? isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                                  : "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30"
-                              }`}
-                            >
-                              {u.role === "admin" ? "إلغاء الإدارة" : "جعل مسؤول"}
-                            </button>
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className={`border-b ${isDark ? "border-slate-800" : "border-slate-200"}`}>
+                          <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>المستخدم</th>
+                          <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>الدور</th>
+                          <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>الموقع</th>
+                          <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>آخر نشاط</th>
+                          <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>تاريخ التسجيل</th>
+                          <th className={`text-right px-4 py-3 ${isDark ? "text-slate-400" : "text-slate-500"} font-medium`}>إجراءات</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {users.map((u) => (
+                          <tr key={u.id} className={`border-b ${isDark ? "border-slate-800/50 hover:bg-slate-800/30" : "border-slate-100 hover:bg-slate-50"}`}>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                                  {(u as unknown as Record<string, unknown>).display_name ? String((u as unknown as Record<string, unknown>).display_name).charAt(0) : u.email?.charAt(0)?.toUpperCase() || "?"}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                                    {(u as unknown as Record<string, unknown>).display_name ? String((u as unknown as Record<string, unknown>).display_name) : u.email?.split("@")[0]}
+                                  </p>
+                                  <p className={`text-xs truncate ${isDark ? "text-slate-500" : "text-slate-400"}`} dir="ltr">{u.email}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                u.role === "admin" ? "bg-orange-500/20 text-orange-400" : isDark ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-600"
+                              }`}>
+                                {u.role === "admin" ? "مسؤول" : "مستخدم"}
+                              </span>
+                            </td>
+                            <td className={`px-4 py-3 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                              {(u as unknown as Record<string, unknown>).location ? String((u as unknown as Record<string, unknown>).location) : "—"}
+                            </td>
+                            <td className={`px-4 py-3 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                              {(u as unknown as Record<string, unknown>).last_seen ? new Date(String((u as unknown as Record<string, unknown>).last_seen)).toLocaleDateString("ar-SA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                            </td>
+                            <td className={`px-4 py-3 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`} dir="ltr">
+                              {new Date(u.created_at).toLocaleDateString("ar-SA")}
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => updateUserRole(u.id, u.role === "admin" ? "user" : "admin")}
+                                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                                  u.role === "admin"
+                                    ? isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                    : "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30"
+                                }`}
+                              >
+                                {u.role === "admin" ? "إلغاء الإدارة" : "جعل مسؤول"}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
 

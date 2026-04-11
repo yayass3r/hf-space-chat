@@ -5,9 +5,10 @@ import { supabase, isSupabaseConfigured, loadSettings, checkSupabaseConnection, 
 import { useAuth } from "@/components/AuthProvider";
 import AdBanner from "@/components/AdBanner";
 import MarkdownMessage from "@/components/MarkdownMessage";
-import type { Message, ChatSession } from "@/lib/types";
+import { UserAvatar } from "@/components/UserProfile";
+import type { Message, ChatSession, UserProfile } from "@/lib/types";
 
-export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) {
+export default function ChatApp({ onAdminClick, onProfileClick }: { onAdminClick: () => void; onProfileClick: () => void }) {
   const { user, isAdmin, signOut } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -23,10 +24,23 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedModel, setSelectedModel] = useState(DEFAULT_SETTINGS.hf_model);
   const [showModelMenu, setShowModelMenu] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const modelMenuRef = useRef<HTMLDivElement>(null);
+
+  // Load user profile for sidebar avatar
+  useEffect(() => {
+    if (!supabase || !user) return;
+    async function loadProfile() {
+      try {
+        const { data } = await supabase!.from("profiles").select("*").eq("id", user!.id).single();
+        if (data) setUserProfile(data as UserProfile);
+      } catch {}
+    }
+    loadProfile();
+  }, [user]);
 
   // Close model menu on outside click
   useEffect(() => {
@@ -437,13 +451,24 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
               <span className={`w-2 h-2 rounded-full ${statusColor[dbStatus]}`}></span>Supabase: {statusText[dbStatus]}
             </div>
             {user && (
-              <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white text-xs font-bold">{user.email?.charAt(0).toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate" dir="ltr">{user.email}</p>
-                  <p className="text-[10px] text-slate-400">{isAdmin ? "مسؤول" : "مستخدم"}</p>
+              <button
+                onClick={onProfileClick}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors group"
+              >
+                <UserAvatar profile={userProfile} size="sm" />
+                <div className="flex-1 min-w-0 text-right">
+                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
+                    {userProfile?.display_name || user.email?.split("@")[0]}
+                  </p>
+                  <p className="text-[10px] text-slate-400 truncate" dir="ltr">{user.email}</p>
                 </div>
-              </div>
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${isAdmin ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400"}`}>
+                    {isAdmin ? "مسؤول" : "مستخدم"}
+                  </span>
+                  <svg className="w-3 h-3 text-slate-400 group-hover:text-orange-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                </div>
+              </button>
             )}
           </div>
         </aside>
@@ -514,6 +539,10 @@ export default function ChatApp({ onAdminClick }: { onAdminClick: () => void }) 
             </button>
             <button onClick={clearChat} className="p-2 rounded-lg text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="مسح المحادثة">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M4 7h16" /></svg>
+            </button>
+            {/* Profile button */}
+            <button onClick={onProfileClick} className="p-2 rounded-lg text-slate-500 hover:text-orange-600 dark:text-slate-400 dark:hover:text-orange-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="الملف الشخصي">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             </button>
             <button onClick={signOut} className="p-2 rounded-lg text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="تسجيل الخروج">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>

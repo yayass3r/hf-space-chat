@@ -14,7 +14,18 @@ export interface UserProfile {
   id: string;
   email: string;
   role: "admin" | "user";
+  display_name: string;
+  avatar_url: string;
+  bio: string;
+  phone: string;
+  website: string;
+  location: string;
+  language_preference: string;
+  theme_preference: string;
+  notifications_enabled: boolean;
+  last_seen: string;
   created_at: string;
+  updated_at: string;
 }
 
 // SiteSettings is now defined ONLY in supabase.ts to avoid duplication
@@ -38,4 +49,13 @@ export interface DashboardStats {
   totalMessages: number;
   todayMessages: number;
   activeUsers: number;
+}
+
+export interface UserActivityStats {
+  totalSessions: number;
+  totalMessages: number;
+  todayMessages: number;
+  streak: number;
+  joinedDaysAgo: number;
+  lastActive: string;
 }

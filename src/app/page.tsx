@@ -6,10 +6,12 @@ import LoginPage from "@/components/LoginPage";
 import ChatApp from "@/components/ChatApp";
 import AdminDashboard from "@/components/AdminDashboard";
 import FullStackBuilder from "@/components/FullStackBuilder";
+import UserProfile from "@/components/UserProfile";
 
 function AppContent() {
   const { user, isAdmin, loading } = useAuth();
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [appMode, setAppMode] = useState<"chat" | "builder">("chat");
 
   // Loading state
@@ -42,6 +44,11 @@ function AppContent() {
     return <AdminDashboard onClose={() => setShowAdmin(false)} />;
   }
 
+  // User profile
+  if (showProfile) {
+    return <UserProfile onClose={() => setShowProfile(false)} />;
+  }
+
   // Builder mode
   if (appMode === "builder") {
     return <FullStackBuilder onBack={() => setAppMode("chat")} />;
@@ -70,7 +77,10 @@ function AppContent() {
         </button>
       </div>
 
-      <ChatApp onAdminClick={() => setShowAdmin(true)} />
+      <ChatApp
+        onAdminClick={() => setShowAdmin(true)}
+        onProfileClick={() => setShowProfile(true)}
+      />
     </div>
   );
 }
