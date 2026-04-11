@@ -100,3 +100,41 @@ Stage Summary:
 - 7 قوالب مشاريع جاهزة للاستخدام الفوري
 - الملفات الجديدة: builder-templates.ts, FullStackBuilder.tsx
 - الملفات المعدلة: page.tsx, globals.css
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: إضافة ملف شخصي شامل للمستخدمين يحسن تجربة المستخدم
+
+Work Log:
+- أنشأ ملف types.ts محدث مع UserProfile يحتوي 13 حقل جديد (display_name, avatar_url, bio, phone, website, location, language_preference, theme_preference, notifications_enabled, last_seen, updated_at)
+- أنشأ UserActivityStats interface للإحصائيات
+- أنشأ SQL migration script (upgrade_profiles.sql) لإضافة الأعمدة الجديدة لجدول profiles مع DO block آمن
+- أنشأ مكون UserProfile.tsx شامل مع:
+  - 4 تبويبات: نظرة عامة، تعديل الملف، النشاط، الإعدادات
+  - غلاف ملون مع صورة رمزية متدرجة
+  - بطاقات إحصائيات (محادثات، رسائل، رسائل اليوم، أيام النشاط)
+  - تعديل الملف الشخصي (اسم معروض، صورة، نبذة، هاتف، موقع، موقع إلكتروني)
+  - إعدادات (لغة، مظهر، إشعارات)
+  - تغيير كلمة المرور
+  - منطقة الخطر (تسجيل خروج)
+  - جدول زمني للنشاط
+  - آخر المحادثات مع عدد الرسائل
+- أنشأ UserAvatar component مُعاد استخدامه مع دعم الصور وتدرجات ألوان متناسقة
+- حدّث ChatApp.tsx:
+  - إضافة onProfileClick prop
+  - تحميل بيانات الملف الشخصي للشريط الجانبي
+  - تحسين بطاقة المستخدم في الشريط الجانبي مع UserAvatar واسم معروض
+  - إضافة زر الملف الشخصي في header
+- حدّث page.tsx مع عرض الملف الشخصي (showProfile state)
+- حدّث AdminDashboard.tsx: جدول المستخدمين المحسن مع display_name, location, last_seen
+- حدّث globals.css مع أنماط الملف الشخصي
+- أصلح جميع أخطاء TypeScript و ESLint
+- بناء ناجح ورفع إلى GitHub (commit c81c660)
+
+Stage Summary:
+- ملف شخصي شامل مع 4 أقسام وتجربة مستخدم متكاملة
+- UserAvatar component قابل لإعادة الاستخدام في كل التطبيق
+- SQL migration script جاهز للتطبيق في Supabase SQL Editor
+- الشريط الجانبي محسن مع صورة رمزية واسم معروض
+- لوحة تحكم المدير تعرض بيانات الملف الشخصي الجديدة
