@@ -141,72 +141,89 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
   }, [user]);
 
   const quickActions = [
-    { page: "chat" as AppPage, icon: "💬", label: "محادثة جديدة", desc: "تحدث مع الذكاء الاصطناعي", color: "from-blue-500 to-cyan-400" },
-    { page: "builder" as AppPage, icon: "🏗️", label: "بناء مشروع", desc: "أنشئ تطبيق Full-Stack", color: "from-violet-500 to-purple-500" },
-    { page: "deploy" as AppPage, icon: "🚀", label: "نشر مشروع", desc: "انشر على استضافة مجانية", color: "from-emerald-500 to-teal-400" },
-    { page: "profile" as AppPage, icon: "👤", label: "الملف الشخصي", desc: "إعدادات حسابك", color: "from-pink-500 to-rose-400" },
+    { page: "chat" as AppPage, icon: "💬", label: "محادثة جديدة", desc: "تحدث مع الذكاء الاصطناعي", color: "from-blue-500 to-cyan-400", bg: "bg-blue-500/10 dark:bg-blue-500/5" },
+    { page: "builder" as AppPage, icon: "🏗️", label: "بناء مشروع", desc: "أنشئ تطبيق Full-Stack", color: "from-violet-500 to-purple-500", bg: "bg-violet-500/10 dark:bg-violet-500/5" },
+    { page: "deploy" as AppPage, icon: "🚀", label: "نشر مشروع", desc: "انشر على استضافة مجانية", color: "from-emerald-500 to-teal-400", bg: "bg-emerald-500/10 dark:bg-emerald-500/5" },
+    { page: "profile" as AppPage, icon: "👤", label: "الملف الشخصي", desc: "إعدادات حسابك", color: "from-pink-500 to-rose-400", bg: "bg-pink-500/10 dark:bg-pink-500/5" },
   ];
 
   return (
     <div className="h-full overflow-y-auto" dir="rtl">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Welcome Banner */}
-        <div className={`rounded-2xl p-6 sm:p-8 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-400 relative overflow-hidden`}>
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzBoLTJ2LTJoMnYyem0wLTRoLTJ2LTJoMnYyem0tNCA0aC0ydi0yaDJ2MnptMCA0aC0ydi0yaDJ2MnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-20" />
+        {/* Welcome Banner - Enhanced */}
+        <div className="rounded-2xl p-6 sm:p-8 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-400 relative overflow-hidden banner-shimmer animate-fade-in-up">
+          {/* Decorative circles */}
+          <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
+          <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-yellow-300/20 blur-3xl" />
+          <div className="absolute top-1/2 left-1/3 w-20 h-20 rounded-full bg-white/5 blur-xl" />
           <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white text-2xl font-bold shadow-xl">
+              <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white text-2xl font-bold shadow-2xl shadow-orange-600/30 border border-white/10">
                 HF
               </div>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-white">
                   مرحباً، {user?.email?.split("@")[0] || "مستخدم"}!
                 </h1>
-                <p className="text-white/80 text-sm mt-1">مرحباً بك في {siteSettings.site_name}</p>
+                <p className="text-white/80 text-sm mt-1">مرحباً بك في {siteSettings.site_name} — منصتك الذكية</p>
               </div>
             </div>
-            {isAdmin && (
+            <div className="flex items-center gap-2 sm:mr-auto">
+              {isAdmin && (
+                <button
+                  onClick={() => navigate("admin")}
+                  className="px-4 py-2.5 rounded-xl bg-white/15 backdrop-blur-sm text-white text-sm font-medium hover:bg-white/25 transition-all border border-white/10 hover:border-white/20"
+                >
+                  🛡️ لوحة التحكم
+                </button>
+              )}
               <button
-                onClick={() => navigate("admin")}
-                className="sm:mr-auto px-4 py-2 rounded-xl bg-white/20 backdrop-blur-sm text-white text-sm font-medium hover:bg-white/30 transition-colors"
+                onClick={() => navigate("chat")}
+                className="px-4 py-2.5 rounded-xl bg-white text-orange-600 text-sm font-bold hover:bg-white/90 transition-all shadow-lg shadow-orange-700/20"
               >
-                🛡️ لوحة التحكم
+                ابدأ محادثة ←
               </button>
-            )}
+            </div>
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* Stats Grid - Enhanced */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           {[
-            { label: "المحادثات", value: stats.sessions, icon: "💬", color: "from-blue-500/10 to-blue-600/5 border-blue-500/20" },
-            { label: "الرسائل", value: stats.messages, icon: "📝", color: "from-violet-500/10 to-violet-600/5 border-violet-500/20" },
-            { label: "المشاريع", value: stats.projects, icon: "🏗️", color: "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20" },
-            { label: "النماذج المتاحة", value: AVAILABLE_MODELS.length, icon: "🤖", color: "from-orange-500/10 to-orange-600/5 border-orange-500/20" },
-          ].map((stat) => (
-            <div key={stat.label} className={`rounded-xl border p-4 bg-gradient-to-br ${stat.color}`}>
-              <span className="text-2xl">{stat.icon}</span>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white mt-2">{stat.value}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{stat.label}</p>
+            { label: "المحادثات", value: stats.sessions, icon: "💬", gradient: "from-blue-500 to-cyan-400", bg: "bg-blue-50 dark:bg-blue-950/30", border: "border-blue-200/60 dark:border-blue-800/30" },
+            { label: "الرسائل", value: stats.messages, icon: "📝", gradient: "from-violet-500 to-purple-400", bg: "bg-violet-50 dark:bg-violet-950/30", border: "border-violet-200/60 dark:border-violet-800/30" },
+            { label: "المشاريع", value: stats.projects, icon: "🏗️", gradient: "from-emerald-500 to-teal-400", bg: "bg-emerald-50 dark:bg-emerald-950/30", border: "border-emerald-200/60 dark:border-emerald-800/30" },
+            { label: "النماذج", value: AVAILABLE_MODELS.length, icon: "🤖", gradient: "from-orange-500 to-amber-400", bg: "bg-orange-50 dark:bg-orange-950/30", border: "border-orange-200/60 dark:border-orange-800/30" },
+          ].map((stat, idx) => (
+            <div key={stat.label} className={`stat-card rounded-2xl border p-4 ${stat.bg} ${stat.border} animate-fade-in-up`} style={{ animationDelay: `${idx * 0.05}s` }}>
+              <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center text-white text-base shadow-lg mb-3`}>
+                {stat.icon}
+              </div>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{stat.value}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{stat.label}</p>
             </div>
           ))}
         </div>
 
-        {/* Quick Actions */}
+        {/* Quick Actions - Enhanced */}
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3">إجراءات سريعة</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {quickActions.map((action) => (
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+            <span className="w-1 h-5 rounded-full bg-gradient-to-b from-orange-500 to-yellow-400" />
+            إجراءات سريعة
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            {quickActions.map((action, idx) => (
               <button
                 key={action.page}
                 onClick={() => navigate(action.page)}
-                className={`group p-4 rounded-2xl border-2 transition-all text-right hover:shadow-lg ${
+                className={`quick-action-card group p-5 rounded-2xl border text-right animate-fade-in-up ${
                   isDark
-                    ? "bg-slate-800/50 border-slate-700 hover:border-slate-500"
-                    : "bg-white border-slate-200 hover:border-slate-300"
-                }`}
+                    ? "bg-slate-800/40 border-slate-700/60 hover:border-slate-500/80"
+                    : "bg-white/80 border-slate-200/80 hover:border-slate-300"
+                } backdrop-blur-sm`}
+                style={{ animationDelay: `${0.1 + idx * 0.05}s` }}
               >
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center text-white text-lg shadow-lg mb-3 group-hover:scale-110 transition-transform`}>
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center text-white text-xl shadow-lg mb-3 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300`}>
                   {action.icon}
                 </div>
                 <h3 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{action.label}</h3>
@@ -216,13 +233,16 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
           </div>
         </div>
 
-        {/* Available Models */}
+        {/* Available Models - Enhanced */}
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3">النماذج المتاحة</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {AVAILABLE_MODELS.map((model) => (
-              <div key={model.id} className={`flex items-center gap-3 p-3 rounded-xl border ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-slate-200"}`}>
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white text-xs font-bold">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+            <span className="w-1 h-5 rounded-full bg-gradient-to-b from-violet-500 to-purple-500" />
+            النماذج المتاحة
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+            {AVAILABLE_MODELS.map((model, idx) => (
+              <div key={model.id} className={`card-modern flex items-center gap-3 p-3.5 animate-fade-in-up`} style={{ animationDelay: `${0.2 + idx * 0.03}s` }}>
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white text-[10px] font-bold shrink-0 shadow-md">
                   AI
                 </div>
                 <div className="flex-1 min-w-0">
@@ -234,15 +254,21 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
           </div>
         </div>
 
-        {/* Recent Activity Placeholder */}
-        <div className={`rounded-2xl border p-6 ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-white border-slate-200"}`}>
-          <h2 className={`text-lg font-bold mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>النشاط الأخير</h2>
+        {/* Recent Activity - Enhanced */}
+        <div className="card-modern p-6">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+            <span className="w-1 h-5 rounded-full bg-gradient-to-b from-emerald-500 to-teal-400" />
+            النشاط الأخير
+          </h2>
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="text-4xl mb-3">📊</div>
-            <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>ابدأ محادثة أو أنشئ مشروعاً لمشاهدة نشاطك هنا</p>
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center text-3xl mb-4">
+              📊
+            </div>
+            <p className={`text-sm font-medium ${isDark ? "text-slate-300" : "text-slate-700"}`}>لا يوجد نشاط بعد</p>
+            <p className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>ابدأ محادثة أو أنشئ مشروعاً لمشاهدة نشاطك هنا</p>
             <button
               onClick={() => navigate("chat")}
-              className="mt-4 px-6 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 text-white text-sm font-medium shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all"
+              className="btn-primary mt-5 px-8 py-3 text-sm"
             >
               ابدأ محادثة
             </button>
@@ -312,14 +338,19 @@ function MobileBottomNav({ currentPage, navigate }: { currentPage: AppPage; navi
             <button
               key={item.id}
               onClick={() => navigate(item.id)}
-              className={`flex flex-col items-center gap-1 py-1 px-3 rounded-lg transition-colors ${
+              className={`relative flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 ${
                 isActive
                   ? "text-orange-600 dark:text-orange-400"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
               }`}
             >
-              {item.icon}
-              <span className="text-[10px] font-medium">{item.label}</span>
+              {isActive && (
+                <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-gradient-to-r from-orange-500 to-yellow-400" />
+              )}
+              <span className={`transition-transform duration-200 ${isActive ? "scale-110" : ""}`}>
+                {item.icon}
+              </span>
+              <span className={`text-[10px] font-medium ${isActive ? "font-bold" : ""}`}>{item.label}</span>
             </button>
           );
         })}
@@ -410,24 +441,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Enhanced with glass effect */}
       <aside className={`fixed lg:relative z-50 lg:z-auto flex flex-col h-full border-l transition-all duration-300 ${
         sidebarCollapsed ? "w-16" : "w-64"
       } ${
         mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      } bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-slate-200 dark:border-slate-800`}>
+      } sidebar-glass border-slate-200/80 dark:border-slate-800/80`}>
 
         {/* Sidebar Header */}
-        <div className={`p-4 border-b border-slate-200 dark:border-slate-800 ${sidebarCollapsed ? "px-2" : ""}`}>
+        <div className={`p-4 border-b border-slate-200/60 dark:border-slate-800/60 ${sidebarCollapsed ? "px-2" : ""}`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-orange-500/20 shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-orange-500/25 shrink-0">
               HF
             </div>
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0">
                 <h1 className="text-sm font-bold text-slate-900 dark:text-white truncate">{siteSettings.site_name}</h1>
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                  <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]}`}></span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]} ${dbStatus === "connected" ? "animate-pulse" : ""}`}></span>
                   {statusText[dbStatus]}
                 </div>
               </div>
@@ -437,45 +468,48 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-2 space-y-1">
-          {visibleNavItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => handleNavigate(item.id)}
-              className={`w-full flex items-center gap-3 rounded-xl transition-all ${
-                sidebarCollapsed ? "px-2 py-3 justify-center" : "px-3 py-2.5"
-              } ${
-                currentPage === item.id
-                  ? `bg-gradient-to-r ${item.color} text-white shadow-lg`
-                  : isDark
-                    ? "text-slate-400 hover:text-white hover:bg-slate-800"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-              }`}
-              title={sidebarCollapsed ? item.label : undefined}
-            >
-              <span className={`shrink-0 ${currentPage === item.id ? "text-white" : ""}`}>
-                {item.icon}
-              </span>
-              {!sidebarCollapsed && (
-                <span className="text-sm font-medium">{item.label}</span>
-              )}
-              {!sidebarCollapsed && item.badge && (
-                <span className="mr-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white">
-                  {item.badge}
+          {visibleNavItems.map((item) => {
+            const isActive = currentPage === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleNavigate(item.id)}
+                className={`w-full flex items-center gap-3 rounded-xl transition-all duration-200 ${
+                  sidebarCollapsed ? "px-2 py-3 justify-center" : "px-3 py-2.5"
+                } ${
+                  isActive
+                    ? `bg-gradient-to-r ${item.color} text-white shadow-lg nav-active-glow`
+                    : isDark
+                      ? "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                }`}
+                title={sidebarCollapsed ? item.label : undefined}
+              >
+                <span className={`shrink-0 transition-transform duration-200 ${isActive ? "scale-110" : ""}`}>
+                  {item.icon}
                 </span>
-              )}
-            </button>
-          ))}
+                {!sidebarCollapsed && (
+                  <span className="text-sm font-medium">{item.label}</span>
+                )}
+                {!sidebarCollapsed && item.badge && (
+                  <span className="mr-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white badge-glow">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         {/* Sidebar Footer */}
-        <div className={`border-t border-slate-200 dark:border-slate-800 ${sidebarCollapsed ? "p-2" : "p-3"} space-y-2`}>
+        <div className={`border-t border-slate-200/60 dark:border-slate-800/60 ${sidebarCollapsed ? "p-2" : "p-3"} space-y-2`}>
           {/* User profile section */}
           {user && (
             <button
               onClick={() => handleNavigate("profile")}
-              className={`w-full flex items-center gap-2.5 rounded-xl transition-colors ${
+              className={`w-full flex items-center gap-2.5 rounded-xl transition-all duration-200 ${
                 sidebarCollapsed ? "px-1 py-2 justify-center" : "px-2.5 py-2"
-              } ${isDark ? "bg-slate-800 hover:bg-slate-700" : "bg-slate-100 hover:bg-slate-200"}`}
+              } ${isDark ? "bg-slate-800/60 hover:bg-slate-700/60" : "bg-slate-100/80 hover:bg-slate-200/80"} hover:shadow-md`}
               title={sidebarCollapsed ? "الملف الشخصي" : undefined}
             >
               <UserAvatar profile={userProfile} size="sm" />
@@ -505,7 +539,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors hidden lg:block"
               title={sidebarCollapsed ? "توسيع القائمة" : "تصغير القائمة"}
             >
-              <svg className={`w-5 h-5 transition-transform ${sidebarCollapsed ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <svg className={`w-5 h-5 transition-transform duration-300 ${sidebarCollapsed ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
               </svg>
             </button>
@@ -524,13 +558,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 pb-14 lg:pb-0">
-        {/* Top Header Bar */}
-        <header className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+        {/* Top Header Bar - Enhanced */}
+        <header className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-200/60 dark:border-slate-800/60 glass-strong">
           <div className="flex items-center gap-3">
             {/* Mobile menu button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="lg:hidden p-2 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -555,8 +589,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">{pageTitle}</h2>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <span className="flex items-center gap-1">
-                  <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]}`}></span>
+                <span className="flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]} ${dbStatus === "connected" ? "animate-pulse" : ""}`}></span>
                   {statusText[dbStatus]}
                 </span>
               </div>

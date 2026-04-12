@@ -25,7 +25,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Reset password mode
     if (isResetMode) {
       if (!supabase) {
         setError("Supabase غير مُعد");
@@ -94,16 +93,16 @@ export default function LoginPage() {
 
   if (!isSupabaseConfigured) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
-        <div className="w-full max-w-md">
+      <div className="login-bg flex min-h-screen items-center justify-center p-4">
+        <div className="w-full max-w-md animate-fade-in-up">
           <div className="text-center mb-8">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white text-3xl font-bold mx-auto mb-4 shadow-xl shadow-orange-500/20">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white text-3xl font-bold mx-auto mb-4 shadow-xl shadow-orange-500/30 animate-float">
               HF
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            <h1 className="text-2xl font-bold text-white">
               HF Space Chat
             </h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-2">
+            <p className="text-slate-400 mt-2">
               خدمة المصادقة غير مُعدّة. تواصل مع المسؤول.
             </p>
           </div>
@@ -113,26 +112,31 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4" dir="rtl">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white text-3xl font-bold mx-auto mb-4 shadow-xl shadow-orange-500/20">
+    <div className="login-bg flex min-h-screen items-center justify-center p-4" dir="rtl">
+      {/* Floating orbs */}
+      <div className="login-orb login-orb-1" />
+      <div className="login-orb login-orb-2" />
+      <div className="login-orb login-orb-3" />
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Logo & Header */}
+        <div className="text-center mb-8 animate-fade-in-up">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center text-white text-3xl font-bold mx-auto mb-5 shadow-2xl shadow-orange-500/30 animate-float">
             HF
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            HF Space Chat
+          <h1 className="text-3xl font-bold text-white mb-2">
+            <span className="gradient-text">HF Space Chat</span>
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-2">
-            {isResetMode ? "إعادة تعيين كلمة المرور" : isSignUp ? "إنشاء حساب جديد" : "تسجيل الدخول إلى حسابك"}
+          <p className="text-slate-400 text-sm">
+            {isResetMode ? "إعادة تعيين كلمة المرور" : isSignUp ? "إنشاء حساب جديد" : "مرحباً بك، سجل دخولك للمتابعة"}
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-6 space-y-4"
-        >
+        {/* Login Card */}
+        <div className="login-card p-6 sm:p-8 animate-fade-in-up" style={{ animationDelay: "0.1s" }}>
+          {/* Error */}
           {error && (
-            <div className="px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm flex items-center gap-2">
+            <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2 animate-fade-in">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -140,8 +144,9 @@ export default function LoginPage() {
             </div>
           )}
 
+          {/* Success */}
           {success && (
-            <div className="px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-sm flex items-center gap-2">
+            <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm flex items-center gap-2 animate-fade-in">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -149,72 +154,79 @@ export default function LoginPage() {
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-              البريد الإلكتروني
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@email.com"
-              dir="ltr"
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-              required
-            />
-          </div>
-
-          {!isResetMode && (
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                كلمة المرور
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                البريد الإلكتروني
               </label>
               <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="example@email.com"
                 dir="ltr"
-                className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                className="login-input"
                 required
               />
             </div>
-          )}
 
-          {isSignUp && !isResetMode && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                تأكيد كلمة المرور
-              </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
-                dir="ltr"
-                className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                required
-              />
-            </div>
-          )}
+            {/* Password */}
+            {!isResetMode && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  كلمة المرور
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  dir="ltr"
+                  className="login-input"
+                  required
+                />
+              </div>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-medium shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                جاري المعالجة...
-              </span>
-            ) : isResetMode ? "إرسال رابط إعادة التعيين" : isSignUp ? "إنشاء حساب" : "تسجيل الدخول"}
-          </button>
+            {/* Confirm Password */}
+            {isSignUp && !isResetMode && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  تأكيد كلمة المرور
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  dir="ltr"
+                  className="login-input"
+                  required
+                />
+              </div>
+            )}
 
-          <div className="flex items-center justify-between pt-2 text-sm">
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary w-full py-3.5 text-sm flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  جاري المعالجة...
+                </>
+              ) : isResetMode ? "إرسال رابط إعادة التعيين" : isSignUp ? "إنشاء حساب" : "تسجيل الدخول"}
+            </button>
+          </form>
+
+          {/* Links */}
+          <div className="flex items-center justify-between pt-5 mt-5 border-t border-white/5 text-sm">
             {!isResetMode && (
               <button
                 type="button"
@@ -223,7 +235,7 @@ export default function LoginPage() {
                   setError(null);
                   setSuccess(null);
                 }}
-                className="text-orange-600 dark:text-orange-400 hover:underline"
+                className="text-orange-400 hover:text-orange-300 transition-colors"
               >
                 {isSignUp ? "لديك حساب؟ سجل الدخول" : "ليس لديك حساب؟ أنشئ واحدًا"}
               </button>
@@ -236,15 +248,29 @@ export default function LoginPage() {
                   setError(null);
                   setSuccess(null);
                 }}
-                className="text-slate-500 dark:text-slate-400 hover:text-orange-500 dark:hover:text-orange-400 hover:underline"
+                className="text-slate-400 hover:text-slate-300 transition-colors"
               >
                 {isResetMode ? "العودة لتسجيل الدخول" : "نسيت كلمة المرور؟"}
               </button>
             )}
           </div>
-        </form>
+        </div>
 
-        <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-6">
+        {/* Features */}
+        <div className="mt-8 grid grid-cols-3 gap-3 animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
+          {[
+            { icon: "🤖", label: "نماذج AI متعددة" },
+            { icon: "🚀", label: "نشر مجاني" },
+            { icon: "🔒", label: "آمن ومحمي" },
+          ].map((feature) => (
+            <div key={feature.label} className="text-center py-3 px-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+              <div className="text-lg mb-1">{feature.icon}</div>
+              <p className="text-[10px] text-slate-500">{feature.label}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-center text-[10px] text-slate-600 mt-6">
           بالتسجيل، أنت توافق على شروط الاستخدام وسياسة الخصوصية
         </p>
       </div>

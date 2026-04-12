@@ -571,14 +571,14 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
           {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white text-3xl font-bold mb-6 shadow-xl shadow-orange-500/20">HF</div>
+            <div className="flex flex-col items-center justify-center h-full text-center animate-fade-in-up">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center text-white text-3xl font-bold mb-6 shadow-2xl shadow-orange-500/25 animate-float">HF</div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">مرحباً بك في {siteSettings.site_name}</h2>
               <p className="text-slate-500 dark:text-slate-400 max-w-md mb-3">تحدث مع نماذج الذكاء الاصطناعي عبر Hugging Face Inference API بسرعة وسهولة.</p>
-              <p className="text-xs text-orange-500 mb-6">النموذج الحالي: {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel.split("/").pop()}</p>
+              <p className="text-xs text-orange-500 font-medium mb-6">النموذج الحالي: {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel.split("/").pop()}</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg w-full">
                 {["اشرح لي مفهوم الذكاء الاصطناعي", "اكتب كود Python", "ترجم هذا النص للعربية"].map((suggestion) => (
-                  <button key={suggestion} onClick={() => { setInput(suggestion); inputRef.current?.focus(); }} className="px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-orange-300 dark:hover:border-orange-600 transition-all">
+                  <button key={suggestion} onClick={() => { setInput(suggestion); inputRef.current?.focus(); }} className="card-modern px-4 py-3 text-sm text-slate-700 dark:text-slate-300 text-right">
                     {suggestion}
                   </button>
                 ))}
@@ -587,8 +587,14 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
           )}
 
           {messages.map((message, index) => (
-            <div key={message.id || index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-lg shadow-orange-500/20" : isError(message) ? "bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800" : "bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 shadow-sm"}`}>
+            <div key={message.id || index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"} animate-fade-in`}>
+              <div className={`max-w-[85%] sm:max-w-[75%] px-4 py-3 ${
+                message.role === "user"
+                  ? "msg-user"
+                  : isError(message)
+                    ? "msg-error"
+                    : "msg-assistant"
+              }`}>
                 <div className="flex items-center justify-between mb-1">
                   <span className={`text-xs font-semibold ${message.role === "user" ? "text-orange-100" : isError(message) ? "text-red-500" : "text-orange-500"}`}>{message.role === "user" ? "أنت" : "AI"}</span>
                   {message.role === "assistant" && message.content && (
@@ -614,13 +620,13 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
           ))}
 
           {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
-            <div className="flex justify-start">
-              <div className="bg-white dark:bg-slate-800 rounded-2xl px-4 py-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+            <div className="flex justify-start animate-fade-in">
+              <div className="msg-assistant px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "0ms" }}></span>
-                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "150ms" }}></span>
-                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "300ms" }}></span>
+                  <div className="flex gap-1.5">
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
                   </div>
                   <span className="text-xs text-slate-500 dark:text-slate-400">يفكر...</span>
                   <button onClick={stopGeneration} className="px-2 py-1 rounded-lg text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800 transition-colors">إيقاف</button>
@@ -641,23 +647,23 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
 
         <AdBanner position="bottom" />
 
-        {/* Input Area */}
-        <div className="px-4 sm:px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+        {/* Input Area - Enhanced */}
+        <div className="px-4 sm:px-6 py-3 border-t border-slate-200/60 dark:border-slate-800/60 glass-strong">
           <div className="flex items-end gap-3 max-w-4xl mx-auto">
             <div className="flex-1 relative">
-              <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="اكتب رسالتك..." rows={1} className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none text-sm leading-relaxed" style={{ maxHeight: "120px" }} onInput={(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = "auto"; target.style.height = Math.min(target.scrollHeight, 120) + "px"; }} />
+              <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="اكتب رسالتك..." rows={1} className="input-modern px-4 py-3 text-sm leading-relaxed resize-none focus:ring-2 focus:ring-orange-500/20" style={{ maxHeight: "120px" }} onInput={(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = "auto"; target.style.height = Math.min(target.scrollHeight, 120) + "px"; }} />
             </div>
             {isLoading ? (
-              <button onClick={stopGeneration} className="flex items-center justify-center w-12 h-12 rounded-xl bg-red-500 text-white shadow-lg shadow-red-500/20 hover:shadow-red-500/40 transition-all" title="إيقاف">
+              <button onClick={stopGeneration} className="flex items-center justify-center w-12 h-12 rounded-xl bg-red-500 text-white shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all active:scale-95" title="إيقاف">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
               </button>
             ) : (
-              <button onClick={sendMessage} disabled={!input.trim()} className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">
+              <button onClick={sendMessage} disabled={!input.trim()} className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none active:scale-95">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7" /><path d="M12 19V5" /></svg>
               </button>
             )}
           </div>
-          <p className="mt-1.5 text-center text-xs text-slate-400 dark:text-slate-500">Enter = إرسال · Shift+Enter = سطر جديد · النموذج: {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || "..."}</p>
+          <p className="mt-1.5 text-center text-[10px] text-slate-400 dark:text-slate-500">Enter = إرسال · Shift+Enter = سطر جديد · النموذج: {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || "..."}</p>
         </div>
       </div>
     </div>
