@@ -6,6 +6,7 @@ import { useRouter, type AppPage } from "./HashRouter";
 import { supabase, checkSupabaseConnection, loadSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS, type SiteSettings } from "@/lib/supabase";
 import type { UserProfile } from "@/lib/types";
 import { UserAvatar } from "./UserProfile";
+import { NotificationCenter } from "./NotificationSystem";
 
 // ==================== NAV ITEMS CONFIG ====================
 interface NavItem {
@@ -597,6 +598,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Notification Center */}
+            <NotificationCenter />
             {/* Quick navigation for mobile (hidden since we have bottom nav now) */}
             <div className="hidden items-center gap-1 lg:hidden">
               {(["home", "chat", "builder", "deploy"] as AppPage[]).map((page) => {

@@ -10,6 +10,7 @@ import DeploymentHub from "@/components/DeploymentHub";
 import AppLayout, { HomePage } from "@/components/AppLayout";
 import { HashRouterProvider, useRouter } from "@/components/HashRouter";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { NotificationProvider } from "@/components/NotificationSystem";
 
 function AppContent() {
   const { user, isAdmin, loading } = useAuth();
@@ -98,9 +99,11 @@ export default function Home() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <HashRouterProvider>
-          <AppContent />
-        </HashRouterProvider>
+        <NotificationProvider>
+          <HashRouterProvider>
+            <AppContent />
+          </HashRouterProvider>
+        </NotificationProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

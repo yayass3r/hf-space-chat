@@ -1,0 +1,27 @@
+{
+  "name": "HF Space Chat",
+  "short_name": "HF Chat",
+  "description": "تحدث مع نماذج الذكاء الاصطناعي عبر Hugging Face Spaces",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#f97316",
+  "dir": "rtl",
+  "lang": "ar",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"]
+}

@@ -43,6 +43,10 @@ export default function RootLayout({
     <html lang="ar" className="h-full antialiased" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="HF Chat" />
         {/* FIXED: Inline script to prevent FOUC (Flash of Unstyled Content) for dark mode */}
         <script
           dangerouslySetInnerHTML={{
@@ -54,6 +58,22 @@ export default function RootLayout({
                     document.documentElement.classList.add('dark');
                   }
                 } catch(e) {}
+              })();
+            `,
+          }}
+        />
+        {/* Service Worker registration */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                if ('serviceWorker' in navigator) {
+                  window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js').catch(function(e) {
+                      console.warn('SW registration failed:', e);
+                    });
+                  });
+                }
               })();
             `,
           }}
