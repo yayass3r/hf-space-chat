@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "./AuthProvider";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { isSupabaseConfigured, supabase, checkSupabaseConnection } from "@/lib/supabase";
 
 export default function LoginPage() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, isLocalAuth } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [isResetMode, setIsResetMode] = useState(false);
   const [email, setEmail] = useState("");
@@ -14,6 +14,18 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [usingLocalAuth, setUsingLocalAuth] = useState(false);
+
+  // Check if Supabase is reachable
+  useEffect(() => {
+    if (isLocalAuth) {
+      setUsingLocalAuth(true);
+      return;
+    }
+    checkSupabaseConnection().then((reachable) => {
+      setUsingLocalAuth(!reachable);
+    });
+  }, [isLocalAuth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,8 +38,12 @@ export default function LoginPage() {
     }
 
     if (isResetMode) {
+      if (usingLocalAuth) {
+        setError("إعادة تعيين كلمة المرور غير متاحة في الوضع المحلي. تواصل مع المسؤول.");
+        return;
+      }
       if (!supabase) {
-        setError("Supabase غير مُعد");
+        setError("خدمة المصادقة غير متاحة");
         return;
       }
       setLoading(true);
@@ -69,7 +85,7 @@ export default function LoginPage() {
       if (isSignUp) {
         const { error: err } = await signUp(email, password);
         if (err) {
-          setError(err.includes("already registered")
+          setError(err.includes("already registered") || err.includes("مسجل مسبقا")
             ? "هذا البريد الإلكتروني مسجل مسبقاً"
             : err);
         } else {
@@ -79,7 +95,7 @@ export default function LoginPage() {
       } else {
         const { error: err } = await signIn(email, password);
         if (err) {
-          setError(err.includes("Invalid login credentials")
+          setError(err.includes("Invalid login credentials") || err.includes("غير صحيحة")
             ? "بيانات الدخول غير صحيحة"
             : err);
         }
@@ -90,26 +106,6 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
-
-  if (!isSupabaseConfigured) {
-    return (
-      <div className="login-bg flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-md animate-fade-in-up">
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white text-3xl font-bold mx-auto mb-4 shadow-xl shadow-orange-500/30 animate-float">
-              HF
-            </div>
-            <h1 className="text-2xl font-bold text-white">
-              HF Space Chat
-            </h1>
-            <p className="text-slate-400 mt-2">
-              خدمة المصادقة غير مُعدّة. تواصل مع المسؤول.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="login-bg flex min-h-screen items-center justify-center p-4" dir="rtl">
@@ -130,6 +126,13 @@ export default function LoginPage() {
           <p className="text-slate-400 text-sm">
             {isResetMode ? "إعادة تعيين كلمة المرور" : isSignUp ? "إنشاء حساب جديد" : "مرحباً بك، سجل دخولك للمتابعة"}
           </p>
+          {/* Auth mode indicator */}
+          {usingLocalAuth && (
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-[10px] text-amber-400 font-medium">وضع المصادقة المحلي</span>
+            </div>
+          )}
         </div>
 
         {/* Login Card */}
@@ -240,7 +243,7 @@ export default function LoginPage() {
                 {isSignUp ? "لديك حساب؟ سجل الدخول" : "ليس لديك حساب؟ أنشئ واحدًا"}
               </button>
             )}
-            {!isSignUp && (
+            {!isSignUp && !usingLocalAuth && (
               <button
                 type="button"
                 onClick={() => {
