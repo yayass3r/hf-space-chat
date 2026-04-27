@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, startTransition } from "react"
 import { useAuth } from "./AuthProvider";
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from "@/lib/supabase";
 import { localProfiles, localChatSessions, localChatMessages } from "@/lib/localdb";
+import { supabase, isSupabaseConfigured, checkSupabaseConnection } from "@/lib/supabase";
 import type { SiteSettingKey, UserProfile, DashboardStats } from "@/lib/types";
 
 interface AdminTab {
@@ -92,26 +93,67 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
     return () => { mounted = false; };
   }, []);
 
-  // Load users and stats
+  // Load users and stats - uses Supabase when available, LocalDB as fallback
   const loadUsers = useCallback(async () => {
+    // Try Supabase first
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from("profiles").select("*");
+        if (!error && data && data.length > 0) {
+          setUsers(data as unknown as UserProfile[]);
+          // Also sync to local for offline use
+          try {
+            const localAll = localProfiles.getAll();
+            for (const profile of data) {
+              const exists = localAll.find((p: { id: string }) => p.id === profile.id);
+              if (!exists) {
+                localProfiles.update(profile.id, profile);
+              }
+            }
+          } catch {}
+          return;
+        }
+      } catch {}
+    }
+    // Fallback to LocalDB
     const allProfiles = localProfiles.getAll();
     setUsers(allProfiles as unknown as UserProfile[]);
   }, []);
 
   const loadStats = useCallback(async () => {
-    const profiles = localProfiles.getAll();
+    let profileCount = 0;
     let sessions = 0, msgs = 0, today = 0;
+
+    // Try Supabase first for profile count
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { count, error } = await supabase.from("profiles").select("*", { count: "exact", head: true });
+        if (!error && count !== null) {
+          profileCount = count;
+        }
+      } catch {}
+    }
+
+    if (profileCount === 0) {
+      // Fallback to LocalDB
+      const profiles = localProfiles.getAll();
+      profileCount = profiles.length;
+    }
+
+    // Chat stats always from LocalDB (chat data is stored locally)
+    const profiles = localProfiles.getAll();
     for (const p of profiles) {
       sessions += localChatSessions.count(p.id);
       msgs += localChatMessages.count(p.id);
       today += localChatMessages.countToday(p.id);
     }
+
     setStats({
-      totalUsers: profiles.length,
+      totalUsers: profileCount,
       totalSessions: sessions,
       totalMessages: msgs,
       todayMessages: today,
-      activeUsers: profiles.length,
+      activeUsers: profileCount,
     });
   }, []);
 
@@ -126,9 +168,27 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
   }, [activeTab, loadUsers, loadStats]);
 
   async function updateUserRole(userId: string, newRole: "admin" | "user") {
+    // Update in Supabase if available
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from("profiles")
+          .update({ role: newRole })
+          .eq("id", userId);
+        if (!error) {
+          // Also update local
+          localProfiles.updateRole(userId, newRole);
+          setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: newRole } : u));
+          setMessage({ type: "success", text: "تم تحديث دور المستخدم بنجاح في Supabase" });
+          setTimeout(() => setMessage(null), 3000);
+          return;
+        }
+      } catch {}
+    }
+    // Fallback to local only
     localProfiles.updateRole(userId, newRole);
     setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: newRole } : u));
-    setMessage({ type: "success", text: "تم تحديث دور المستخدم بنجاح" });
+    setMessage({ type: "success", text: "تم تحديث دور المستخدم محلياً" });
     setTimeout(() => setMessage(null), 3000);
   }
 
@@ -294,8 +354,8 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
               <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border p-5`}>
                 <h4 className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"} mb-3`}>حالة النظام</h4>
                 <div className="space-y-3">
+                  <StatusRow label="Supabase" status={isSupabaseConfigured ? "connected" : "disconnected"} isDark={isDark} />
                   <StatusRow label="قاعدة البيانات المحلية" status="connected" isDark={isDark} />
-                  <StatusRow label="RLS Policies" status="connected" isDark={isDark} />
                   <StatusRow label="HF Inference API" status={settings.hf_space_url !== "https://your-space.hf.space" ? "connected" : "warning"} isDark={isDark} />
                   <StatusRow label="HF API Token" status={settings.hf_api_token ? "connected" : "warning"} isDark={isDark} />
                   <StatusRow label="AdSense" status={settings.adsense_enabled === "true" ? "connected" : "inactive"} isDark={isDark} />

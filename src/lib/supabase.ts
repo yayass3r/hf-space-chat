@@ -75,9 +75,15 @@ export async function checkSettingsTable(): Promise<boolean> {
 export async function checkSupabaseConnection(): Promise<boolean> {
   if (!supabase) return false;
   try {
+    // Try a lightweight query - site_settings should be readable by anon users
     const { error } = await supabase.from("site_settings").select("key").limit(1);
-    return !error;
-  } catch {
+    if (error) {
+      console.warn("[Supabase] Connection check failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn("[Supabase] Connection check error:", e);
     return false;
   }
 }

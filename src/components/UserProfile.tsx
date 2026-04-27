@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, startTransition } from "react";
 import { useAuth } from "./AuthProvider";
 import { localProfiles, localChatSessions, localChatMessages, localAuth } from "@/lib/localdb";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import type { UserProfile, UserActivityStats } from "@/lib/types";
 
 // ==================== AVATAR COMPONENT ====================
@@ -141,26 +142,47 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  // Load profile data
+  // Load profile data - Supabase first, LocalDB fallback
   const loadProfile = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const p = localProfiles.getById(user.id);
-      if (p) {
-        setProfile(p as unknown as UserProfile);
+      let profileData: UserProfile | null = null;
+
+      // Try Supabase first
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .single();
+          if (!error && data) {
+            profileData = data as unknown as UserProfile;
+          }
+        } catch {}
+      }
+
+      // Fallback to LocalDB
+      if (!profileData) {
+        const p = localProfiles.getById(user.id);
+        if (p) profileData = p as unknown as UserProfile;
+      }
+
+      if (profileData) {
+        setProfile(profileData);
         setEditForm({
-          display_name: p.display_name || "",
-          avatar_url: p.avatar_url || "",
-          bio: p.bio || "",
-          phone: p.phone || "",
-          website: p.website || "",
-          location: p.location || "",
+          display_name: profileData.display_name || "",
+          avatar_url: profileData.avatar_url || "",
+          bio: profileData.bio || "",
+          phone: profileData.phone || "",
+          website: profileData.website || "",
+          location: profileData.location || "",
         });
         setSettingsForm({
-          language_preference: p.language_preference || "ar",
-          theme_preference: p.theme_preference || "system",
-          notifications_enabled: p.notifications_enabled ?? true,
+          language_preference: (profileData as unknown as Record<string, unknown>).language_preference as string || "ar",
+          theme_preference: (profileData as unknown as Record<string, unknown>).theme_preference as string || "system",
+          notifications_enabled: ((profileData as unknown as Record<string, unknown>).notifications_enabled as boolean) ?? true,
         });
       } else {
         setProfile({
@@ -188,7 +210,7 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
       const todayMsgCount = localChatMessages.countToday(user.id);
       const createdAt = new Date(user.created_at || new Date());
       const joinedDaysAgo = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
-      const profileData = localProfiles.getById(user.id);
+      const localP = localProfiles.getById(user.id);
 
       startTransition(() => {
         setStats({
@@ -197,7 +219,7 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
           todayMessages: todayMsgCount,
           streak: 0,
           joinedDaysAgo,
-          lastActive: profileData?.last_seen || new Date().toISOString(),
+          lastActive: localP?.last_seen || new Date().toISOString(),
         });
       });
     } catch {
@@ -218,7 +240,7 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
     }
   }, [user]);
 
-  // Save profile edits
+  // Save profile edits - Supabase + LocalDB
   const saveProfile = async () => {
     if (!user) return;
     setSaving(true);
@@ -226,6 +248,28 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
     setSaveSuccess(false);
 
     try {
+      // Save to Supabase first
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { error: sbError } = await supabase
+            .from("profiles")
+            .update({
+              display_name: editForm.display_name,
+              avatar_url: editForm.avatar_url,
+              bio: editForm.bio,
+              phone: editForm.phone,
+              website: editForm.website,
+              location: editForm.location,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", user.id);
+          if (sbError) {
+            console.warn("[Supabase] Profile update failed:", sbError.message);
+          }
+        } catch {}
+      }
+
+      // Also save to LocalDB
       localProfiles.update(user.id, {
         display_name: editForm.display_name,
         avatar_url: editForm.avatar_url,
@@ -304,7 +348,7 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
     }
   };
 
-  // Change password
+  // Change password - Supabase + LocalDB
   const changePassword = async () => {
     if (!user) return;
     setPasswordError(null);
@@ -320,6 +364,24 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
     }
 
     try {
+      // Try Supabase password update first
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { error: sbError } = await supabase.auth.updateUser({
+            password: passwordForm.newPassword,
+          });
+          if (!sbError) {
+            // Also update local
+            localAuth.updatePassword(user.id, passwordForm.newPassword);
+            setPasswordSuccess(true);
+            setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+            setTimeout(() => setPasswordSuccess(false), 3000);
+            return;
+          }
+        } catch {}
+      }
+
+      // Fallback to local password update
       const result = localAuth.updatePassword(user.id, passwordForm.newPassword);
       if (result.error) {
         setPasswordError(result.error);
