@@ -6,7 +6,6 @@ import { useRouter, type AppPage } from "./HashRouter";
 import { supabase, checkSupabaseConnection, loadSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS, type SiteSettings } from "@/lib/supabase";
 import type { UserProfile } from "@/lib/types";
 import { UserAvatar } from "./UserProfile";
-import { NotificationCenter } from "./NotificationSystem";
 
 // ==================== NAV ITEMS CONFIG ====================
 interface NavItem {
@@ -16,12 +15,14 @@ interface NavItem {
   badge?: string;
   adminOnly?: boolean;
   color: string;
+  desc: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
   {
     id: "home",
     label: "الرئيسية",
+    desc: "لوحة المعلومات",
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     id: "chat",
     label: "المحادثة",
+    desc: "تحدث مع الذكاء الاصطناعي",
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -42,6 +44,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     id: "builder",
     label: "بناء المشاريع",
+    desc: "أنشئ تطبيقات بالذكاء الاصطناعي",
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
@@ -52,6 +55,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     id: "deploy",
     label: "نشر المشاريع",
+    desc: "انشر على استضافة مجانية",
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -62,6 +66,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     id: "profile",
     label: "الملف الشخصي",
+    desc: "إعدادات حسابك",
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -72,6 +77,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     id: "admin",
     label: "لوحة التحكم",
+    desc: "إدارة المنصة والمستخدمين",
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -83,7 +89,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 // ==================== THEME TOGGLE ====================
-function ThemeToggle({ isDark }: { isDark: boolean }) {
+function ThemeToggle({ isDark, compact }: { isDark: boolean; compact?: boolean }) {
   const toggleTheme = () => {
     if (isDark) {
       document.documentElement.classList.remove("dark");
@@ -95,11 +101,23 @@ function ThemeToggle({ isDark }: { isDark: boolean }) {
   };
 
   return (
-    <button onClick={toggleTheme} className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title={isDark ? "الوضع الفاتح" : "الوضع المظلم"}>
+    <button
+      onClick={toggleTheme}
+      className={`${compact ? "p-1.5" : "p-2"} rounded-xl transition-all duration-200 ${
+        isDark
+          ? "text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+          : "text-indigo-500 hover:bg-indigo-50 hover:text-indigo-600"
+      }`}
+      title={isDark ? "الوضع الفاتح" : "الوضع المظلم"}
+    >
       {isDark ? (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+        <svg className={`${compact ? "w-4 h-4" : "w-5 h-5"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
       ) : (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+        <svg className={`${compact ? "w-4 h-4" : "w-5 h-5"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
       )}
     </button>
   );
@@ -151,9 +169,8 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
   return (
     <div className="h-full overflow-y-auto" dir="rtl">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Welcome Banner - Enhanced */}
+        {/* Welcome Banner */}
         <div className="rounded-2xl p-6 sm:p-8 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-400 relative overflow-hidden banner-shimmer animate-fade-in-up">
-          {/* Decorative circles */}
           <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
           <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-yellow-300/20 blur-3xl" />
           <div className="absolute top-1/2 left-1/3 w-20 h-20 rounded-full bg-white/5 blur-xl" />
@@ -188,7 +205,7 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
           </div>
         </div>
 
-        {/* Stats Grid - Enhanced */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           {[
             { label: "المحادثات", value: stats.sessions, icon: "💬", gradient: "from-blue-500 to-cyan-400", bg: "bg-blue-50 dark:bg-blue-950/30", border: "border-blue-200/60 dark:border-blue-800/30" },
@@ -206,7 +223,7 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
           ))}
         </div>
 
-        {/* Quick Actions - Enhanced */}
+        {/* Quick Actions */}
         <div>
           <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
             <span className="w-1 h-5 rounded-full bg-gradient-to-b from-orange-500 to-yellow-400" />
@@ -234,7 +251,7 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
           </div>
         </div>
 
-        {/* Available Models - Enhanced */}
+        {/* Available Models */}
         <div>
           <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
             <span className="w-1 h-5 rounded-full bg-gradient-to-b from-violet-500 to-purple-500" />
@@ -255,7 +272,7 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
           </div>
         </div>
 
-        {/* Recent Activity - Enhanced */}
+        {/* Recent Activity */}
         <div className="card-modern p-6">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
             <span className="w-1 h-5 rounded-full bg-gradient-to-b from-emerald-500 to-teal-400" />
@@ -343,7 +360,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setSidebarOpen(false);
   }, [navigate]);
 
-  // Get page title and breadcrumb
+  // Get page title
   const currentPageItem = NAV_ITEMS.find(item => item.id === currentPage);
   const pageTitle = currentPageItem?.label || "الرئيسية";
 
@@ -364,72 +381,100 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 transition-colors duration-300" dir="rtl">
       {/* Overlay backdrop */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      <div
+        className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-all duration-300 ${
+          sidebarOpen ? "opacity-100 visible" : "opacity-0 invisible"
+        }`}
+        onClick={() => setSidebarOpen(false)}
+      />
 
       {/* Slide-in Sidebar */}
       <aside
-        className={`fixed top-0 right-0 z-50 flex flex-col h-full w-72 border-l transition-transform duration-300 ease-in-out sidebar-glass border-slate-200/80 dark:border-slate-800/80 ${
+        className={`fixed top-0 right-0 z-50 flex flex-col h-full w-[280px] transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+          isDark
+            ? "bg-slate-900/98 border-slate-800/60"
+            : "bg-white/98 border-slate-200/80"
+        } border-l shadow-2xl ${
           sidebarOpen ? "translate-x-0" : "translate-x-full"
         }`}
+        style={{ backdropFilter: "blur(20px) saturate(180%)" }}
       >
-
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-slate-200/60 dark:border-slate-800/60">
-          <div className="flex items-center justify-between">
+        <div className="p-4 pb-3">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-orange-500/25 shrink-0">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-orange-500/30">
                 HF
               </div>
-              <div className="flex-1 min-w-0">
-                <h1 className="text-sm font-bold text-slate-900 dark:text-white truncate">{siteSettings.site_name}</h1>
-                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <div>
+                <h1 className="text-sm font-bold text-slate-900 dark:text-white">{siteSettings.site_name}</h1>
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                   <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]} ${dbStatus === "connected" ? "animate-pulse" : ""}`}></span>
                   {statusText[dbStatus]}
                 </div>
               </div>
             </div>
-            {/* Close button */}
             <button
               onClick={() => setSidebarOpen(false)}
-              className="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              title="إغلاق القائمة"
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-90"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
+
+          {/* User Card */}
+          {user && (
+            <div className={`flex items-center gap-3 p-3 rounded-2xl ${isDark ? "bg-slate-800/60" : "bg-slate-50"} transition-colors`}>
+              <UserAvatar profile={userProfile} size="md" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                  {userProfile?.display_name || user.email?.split("@")[0]}
+                </p>
+                <p className="text-[11px] text-slate-400 truncate" dir="ltr">{user.email}</p>
+              </div>
+              <span className={`text-[10px] px-2 py-1 rounded-lg font-bold ${
+                isAdmin ? "bg-orange-500/15 text-orange-600 dark:text-orange-400" : "bg-slate-200/80 dark:bg-slate-700/80 text-slate-500 dark:text-slate-400"
+              }`}>
+                {isAdmin ? "مسؤول" : "مستخدم"}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-2 space-y-1">
+        <nav className="flex-1 overflow-y-auto px-3 py-1 space-y-1">
+          <div className={`text-[10px] font-bold uppercase tracking-wider mb-2 px-3 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+            التنقل
+          </div>
           {visibleNavItems.map((item) => {
             const isActive = currentPage === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => handleNavigate(item.id)}
-                className={`w-full flex items-center gap-3 rounded-xl transition-all duration-200 px-3 py-2.5 ${
+                className={`w-full flex items-center gap-3 rounded-xl transition-all duration-200 px-3 py-2.5 group ${
                   isActive
-                    ? `bg-gradient-to-r ${item.color} text-white shadow-lg nav-active-glow`
+                    ? `bg-gradient-to-r ${item.color} text-white shadow-lg`
                     : isDark
-                      ? "text-slate-400 hover:text-white hover:bg-slate-800/60"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                      ? "text-slate-400 hover:text-white hover:bg-white/5"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                 }`}
               >
-                <span className={`shrink-0 transition-transform duration-200 ${isActive ? "scale-110" : ""}`}>
+                <span className={`shrink-0 transition-transform duration-200 ${isActive ? "scale-110" : "group-hover:scale-105"}`}>
                   {item.icon}
                 </span>
-                <span className="text-sm font-medium">{item.label}</span>
-                {item.badge && (
-                  <span className="mr-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white badge-glow">
-                    {item.badge}
-                  </span>
+                <div className="flex-1 text-right min-w-0">
+                  <span className="text-sm font-medium block">{item.label}</span>
+                  {!isActive && (
+                    <span className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>{item.desc}</span>
+                  )}
+                </div>
+                {isActive && (
+                  <svg className="w-4 h-4 mr-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
                 )}
               </button>
             );
@@ -437,88 +482,94 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="border-t border-slate-200/60 dark:border-slate-800/60 p-3 space-y-2">
-          {/* User profile section */}
-          {user && (
-            <button
-              onClick={() => handleNavigate("profile")}
-              className={`w-full flex items-center gap-2.5 rounded-xl transition-all duration-200 px-2.5 py-2 ${isDark ? "bg-slate-800/60 hover:bg-slate-700/60" : "bg-slate-100/80 hover:bg-slate-200/80"} hover:shadow-md`}
-            >
-              <UserAvatar profile={userProfile} size="sm" />
-              <div className="flex-1 min-w-0 text-right">
-                <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
-                  {userProfile?.display_name || user.email?.split("@")[0]}
-                </p>
-                <p className="text-[10px] text-slate-400 truncate" dir="ltr">{user.email}</p>
-              </div>
-              <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
-                isAdmin ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
-              }`}>
-                {isAdmin ? "مسؤول" : "مستخدم"}
-              </span>
-            </button>
-          )}
-
-          {/* Theme & Logout Controls */}
-          <div className="flex items-center justify-between">
-            <ThemeToggle isDark={isDark} />
+        <div className={`p-3 space-y-2 border-t ${isDark ? "border-slate-800/60" : "border-slate-100"}`}>
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-1">
+              <ThemeToggle isDark={isDark} compact />
+              <button
+                onClick={() => handleNavigate("profile")}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                title="الملف الشخصي"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </button>
+            </div>
             <button
               onClick={signOut}
-              className="p-2 rounded-lg text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/15 transition-all"
               title="تسجيل الخروج"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
+              خروج
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main Content - Full width since sidebar is overlay */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Header Bar */}
-        <header className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-200/60 dark:border-slate-800/60 glass-strong">
+        {/* Minimal Header */}
+        <header className={`flex items-center justify-between px-4 sm:px-6 h-14 border-b transition-colors ${
+          isDark ? "border-slate-800/60 bg-slate-950/80" : "border-slate-200/80 bg-white/80"
+        } backdrop-blur-xl`}>
           <div className="flex items-center gap-3">
-            {/* Menu toggle button - always visible */}
+            {/* Menu toggle */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2.5 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 shadow-sm border border-slate-200/60 dark:border-slate-700/60"
-              title="فتح القائمة"
+              className={`p-2 rounded-xl transition-all active:scale-90 ${
+                sidebarOpen
+                  ? "bg-orange-500/10 text-orange-500 dark:text-orange-400"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              }`}
+              title="القائمة"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              {sidebarOpen ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
             </button>
-            <div>
-              {/* Breadcrumb-style page title */}
-              <div className="flex items-center gap-2">
-                {currentPage !== "home" && (
-                  <>
-                    <button
-                      onClick={() => navigate("home")}
-                      className="text-xs text-slate-400 dark:text-slate-500 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
-                    >
-                      الرئيسية
-                    </button>
-                    <svg className="w-3 h-3 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </>
-                )}
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">{pageTitle}</h2>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <span className="flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]} ${dbStatus === "connected" ? "animate-pulse" : ""}`}></span>
-                  {statusText[dbStatus]}
-                </span>
-              </div>
+
+            {/* Page title */}
+            <div className="flex items-center gap-2">
+              {currentPage !== "home" && (
+                <button
+                  onClick={() => navigate("home")}
+                  className="text-xs text-slate-400 dark:text-slate-500 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
+                >
+                  الرئيسية
+                </button>
+              )}
+              {currentPage !== "home" && (
+                <svg className="w-3 h-3 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              )}
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">{pageTitle}</h2>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Notification Center */}
-            <NotificationCenter />
+
+          {/* Right side */}
+          <div className="flex items-center gap-1.5">
+            <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium ${
+              dbStatus === "connected"
+                ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
+                : dbStatus === "disconnected"
+                  ? "bg-red-50 text-red-500 dark:bg-red-900/20 dark:text-red-400"
+                  : "bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400"
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]} ${dbStatus === "connected" ? "animate-pulse" : ""}`}></span>
+              {statusText[dbStatus]}
+            </div>
+            <ThemeToggle isDark={isDark} compact />
           </div>
         </header>
 

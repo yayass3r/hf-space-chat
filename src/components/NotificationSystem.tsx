@@ -497,7 +497,7 @@ function ToastContainer({
   );
 }
 
-// ==================== Notification Center (Bell Icon + Dropdown) ====================
+// ==================== Notification Center (Bell Icon + Slide Panel) ====================
 
 export function NotificationCenter() {
   const {
@@ -510,25 +510,8 @@ export function NotificationCenter() {
   } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState<NotificationType | "all">("all");
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClick);
-      return () => document.removeEventListener("mousedown", handleClick);
-    }
-  }, [isOpen]);
-
-  // Close dropdown on Escape
+  // Close on Escape
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") setIsOpen(false);
@@ -553,7 +536,7 @@ export function NotificationCenter() {
   };
 
   return (
-    <div className="relative" ref={dropdownRef} dir="rtl">
+    <>
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -582,156 +565,153 @@ export function NotificationCenter() {
         )}
       </button>
 
-      {/* Dropdown Panel */}
-      {isOpen && (
-        <div className="absolute left-0 top-full mt-2 w-[360px] sm:w-96 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/80 dark:border-slate-700/80 rounded-2xl shadow-2xl z-[90] animate-fade-in-scale overflow-hidden">
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-slate-200/60 dark:border-slate-800/60 bg-gradient-to-r from-orange-500/5 via-amber-500/5 to-yellow-500/5 dark:from-orange-500/10 dark:via-amber-500/10 dark:to-yellow-500/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white shadow-md">
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    الإشعارات
-                  </h3>
-                  {unreadCount > 0 && (
-                    <p className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">
-                      {unreadCount} إشعار غير مقروء
-                    </p>
-                  )}
-                </div>
+      {/* Overlay backdrop */}
+      <div
+        className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] transition-all duration-300 ${
+          isOpen ? "opacity-100 visible" : "opacity-0 invisible"
+        }`}
+        onClick={() => setIsOpen(false)}
+      />
+
+      {/* Slide-in Panel from Left */}
+      <div
+        className={`fixed top-0 left-0 z-[70] flex flex-col h-full w-[340px] sm:w-[380px] bg-white/98 dark:bg-slate-900/98 border-r border-slate-200/80 dark:border-slate-800/80 shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+        dir="rtl"
+        style={{ backdropFilter: "blur(20px) saturate(180%)" }}
+      >
+        {/* Header */}
+        <div className="px-4 py-4 border-b border-slate-200/60 dark:border-slate-800/60 bg-gradient-to-r from-orange-500/5 via-amber-500/5 to-yellow-500/5 dark:from-orange-500/10 dark:via-amber-500/10 dark:to-yellow-500/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white shadow-md">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
               </div>
-              <div className="flex items-center gap-1">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">الإشعارات</h3>
                 {unreadCount > 0 && (
-                  <button
-                    onClick={markAllAsRead}
-                    className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
-                    title="تحديد الكل كمقروء"
-                  >
-                    تحديد الكل كمقروء
-                  </button>
-                )}
-                {notifications.length > 0 && (
-                  <button
-                    onClick={clearAll}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    title="مسح الكل"
-                  >
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
+                  <p className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">
+                    {unreadCount} إشعار غير مقروء
+                  </p>
                 )}
               </div>
             </div>
-          </div>
-
-          {/* Filter Tabs */}
-          <div className="px-3 py-2 border-b border-slate-200/40 dark:border-slate-800/40 flex items-center gap-1 overflow-x-auto">
-            {(
-              [
-                { key: "all" as const, label: "الكل" },
-                { key: "info" as const, label: "معلومات" },
-                { key: "success" as const, label: "نجاح" },
-                { key: "warning" as const, label: "تحذير" },
-                { key: "error" as const, label: "خطأ" },
-              ] as const
-            ).map(({ key, label }) => {
-              const isActive = filter === key;
-              const count = filterCounts[key];
-              if (key !== "all" && count === 0 && !isActive) return null;
-              return (
+            <div className="flex items-center gap-1">
+              {unreadCount > 0 && (
                 <button
-                  key={key}
-                  onClick={() => setFilter(key)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap ${
-                    isActive
-                      ? "bg-gradient-to-r from-orange-500 to-yellow-400 text-white shadow-sm"
-                      : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  }`}
+                  onClick={markAllAsRead}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
                 >
-                  {label}
-                  {count > 0 && (
-                    <span
-                      className={`mr-1 inline-flex items-center justify-center min-w-[16px] h-4 px-0.5 rounded-full text-[9px] font-bold ${
-                        isActive
-                          ? "bg-white/20 text-white"
-                          : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  )}
+                  تحديد الكل كمقروء
                 </button>
-              );
-            })}
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={clearAll}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  title="مسح الكل"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
+        </div>
 
-          {/* Notification List */}
-          <div className="max-h-80 overflow-y-auto">
-            {filteredNotifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center text-2xl mb-3">
-                  🔔
-                </div>
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                  لا توجد إشعارات
-                </p>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                  ستظهر الإشعارات هنا عند وصولها
-                </p>
+        {/* Filter Tabs */}
+        <div className="px-3 py-2 border-b border-slate-200/40 dark:border-slate-800/40 flex items-center gap-1 overflow-x-auto">
+          {(
+            [
+              { key: "all" as const, label: "الكل" },
+              { key: "info" as const, label: "معلومات" },
+              { key: "success" as const, label: "نجاح" },
+              { key: "warning" as const, label: "تحذير" },
+              { key: "error" as const, label: "خطأ" },
+            ] as const
+          ).map(({ key, label }) => {
+            const isActive = filter === key;
+            const count = filterCounts[key];
+            if (key !== "all" && count === 0 && !isActive) return null;
+            return (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap ${
+                  isActive
+                    ? "bg-gradient-to-r from-orange-500 to-yellow-400 text-white shadow-sm"
+                    : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                {label}
+                {count > 0 && (
+                  <span
+                    className={`mr-1 inline-flex items-center justify-center min-w-[16px] h-4 px-0.5 rounded-full text-[9px] font-bold ${
+                      isActive
+                        ? "bg-white/20 text-white"
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Notification List */}
+        <div className="flex-1 overflow-y-auto">
+          {filteredNotifications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center text-3xl mb-4">
+                🔔
               </div>
-            ) : (
-              filteredNotifications.map((notification) => {
-                const config = NOTIFICATION_TYPE_CONFIG[notification.type];
-                return (
-                  <NotificationItem
-                    key={notification.id}
-                    notification={notification}
-                    config={config}
-                    onMarkRead={markAsRead}
-                    onRemove={removeNotification}
-                  />
-                );
-              })
-            )}
-          </div>
-
-          {/* Footer */}
-          {notifications.length > 0 && (
-            <div className="px-4 py-2.5 border-t border-slate-200/40 dark:border-slate-800/40 bg-slate-50/50 dark:bg-slate-800/30">
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center">
-                {notifications.length} إشعار · {unreadCount} غير مقروء
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                لا توجد إشعارات
+              </p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                ستظهر الإشعارات هنا عند وصولها
               </p>
             </div>
+          ) : (
+            filteredNotifications.map((notification) => {
+              const config = NOTIFICATION_TYPE_CONFIG[notification.type];
+              return (
+                <NotificationItem
+                  key={notification.id}
+                  notification={notification}
+                  config={config}
+                  onMarkRead={markAsRead}
+                  onRemove={removeNotification}
+                />
+              );
+            })
           )}
         </div>
-      )}
-    </div>
+
+        {/* Footer */}
+        {notifications.length > 0 && (
+          <div className="px-4 py-2.5 border-t border-slate-200/40 dark:border-slate-800/40 bg-slate-50/50 dark:bg-slate-800/30">
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center">
+              {notifications.length} إشعار · {unreadCount} غير مقروء
+            </p>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
