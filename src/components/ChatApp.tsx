@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { supabase, isSupabaseConfigured, loadSettings, checkSupabaseConnection, type SiteSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS } from "@/lib/supabase";
+import { supabase, loadSettings, type SiteSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS } from "@/lib/supabase";
+import { localProfiles, localChatSessions, localChatMessages } from "@/lib/localdb";
 import { useAuth } from "@/components/AuthProvider";
 import AdBanner from "@/components/AdBanner";
 import MarkdownMessage from "@/components/MarkdownMessage";
@@ -45,14 +46,9 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
 
   // Load user profile for sidebar avatar
   useEffect(() => {
-    if (!supabase || !user) return;
-    async function loadProfile() {
-      try {
-        const { data } = await supabase!.from("profiles").select("*").eq("id", user!.id).single();
-        if (data) setUserProfile(data as UserProfile);
-      } catch {}
-    }
-    loadProfile();
+    if (!user) return;
+    const profile = localProfiles.getById(user.id);
+    if (profile) setUserProfile(profile as unknown as UserProfile);
   }, [user]);
 
   // Close model menu on outside click
@@ -104,53 +100,22 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
     } catch {}
   }, []);
 
-  // Check Supabase connection and load sessions
+  // Load sessions from LocalDB (always available)
   useEffect(() => {
-    let cancelled = false;
-    async function checkConnection() {
-      if (!supabase) { if (!cancelled) setDbStatus("disconnected"); return; }
-      try {
-        // Use site_settings for connection check (has public RLS, no recursion risk)
-        const connected = await checkSupabaseConnection();
-        if (cancelled) return;
-        if (!connected) { setDbStatus("disconnected"); return; }
-        
-        setDbStatus("connected");
-        if (user) {
-          try {
-            const { data, error: err2 } = await supabase!
-              .from("projects")
-              .select("id, name, created_at")
-              .eq("template", "chat")
-              .eq("user_id", user!.id)
-              .order("created_at", { ascending: false })
-              .limit(50);
-            // If projects query fails due to RLS, just skip session loading
-            if (!cancelled && !err2 && data) setSessions(data as ChatSession[]);
-          } catch {}
-        }
-      } catch { if (!cancelled) setDbStatus("disconnected"); }
+    setDbStatus("connected"); // LocalDB is always connected
+    if (user) {
+      const localSessions = localChatSessions.getByUserId(user.id);
+      setSessions(localSessions as unknown as ChatSession[]);
     }
-    checkConnection();
-    return () => { cancelled = true; };
   }, [user]);
 
   async function createNewSession(firstMessage: string) {
-    if (!supabase || !user) return null;
-    try {
-      const title = firstMessage.slice(0, 50) + (firstMessage.length > 50 ? "..." : "");
-      const { data, error: err } = await supabase!
-        .from("projects")
-        .insert({ name: title, template: "chat", is_public: false, is_deployed: false, status: "active", user_id: user!.id })
-        .select("id, name, created_at")
-        .single();
-      if (!err && data) {
-        setCurrentSessionId(data.id);
-        setSessions((prev) => [data as ChatSession, ...prev]);
-        return data.id;
-      }
-    } catch (e) { console.error("Create session exception:", e); }
-    return null;
+    if (!user) return null;
+    const title = firstMessage.slice(0, 50) + (firstMessage.length > 50 ? "..." : "");
+    const session = localChatSessions.create(user.id, title);
+    setCurrentSessionId(session.id);
+    setSessions((prev) => [session as unknown as ChatSession, ...prev]);
+    return session.id;
   }
 
   useEffect(() => {
@@ -302,11 +267,11 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
 
     // Create session if needed
     let sessionId = currentSessionId;
-    if (supabase && user && !sessionId) {
+    if (user && !sessionId) {
       sessionId = await createNewSession(trimmed);
     }
-    if (supabase && sessionId) {
-      await supabase!.from("ai_chat_messages").insert({ project_id: sessionId, role: "user", content: trimmed });
+    if (sessionId) {
+      localChatMessages.insert(sessionId, "user", trimmed);
     }
 
     const controller = new AbortController();
@@ -327,14 +292,10 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
           prev.map((m) => m.id === assistantId ? { ...m, content } : m)
         );
       },
-      // onComplete - save to DB
+      // onComplete - save to LocalDB
       (content) => {
         if (sessionId && content) {
-          supabase?.from("ai_chat_messages").insert({
-            project_id: sessionId,
-            role: "assistant",
-            content: content,
-          });
+          localChatMessages.insert(sessionId, "assistant", content);
         }
         setIsLoading(false);
         abortControllerRef.current = null;
@@ -387,7 +348,7 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
       },
       (content) => {
         if (currentSessionId && content) {
-          supabase?.from("ai_chat_messages").insert([
+          localChatMessages.insertMany([
             { project_id: currentSessionId, role: "user", content: lastUserMsg.content },
             { project_id: currentSessionId, role: "assistant", content },
           ]);
@@ -455,25 +416,21 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
   const clearChat = () => { setMessages([]); setError(null); setCurrentSessionId(null); };
 
   const loadSession = async (sessionId: string) => {
-    if (!supabase) return;
-    try {
-      const { data, error: err } = await supabase!.from("ai_chat_messages").select("role, content").eq("project_id", sessionId).order("created_at", { ascending: true });
-      if (!err && data) {
-        setMessages(data.map((m: { role: string; content: string }, i: number) => ({ role: m.role as "user" | "assistant", content: m.content, id: `${sessionId}-${i}` })));
-        setCurrentSessionId(sessionId);
-      }
-    } catch {}
+    const msgs = localChatMessages.getBySessionId(sessionId);
+    if (msgs.length > 0) {
+      setMessages(msgs.map((m, i) => ({ role: m.role as "user" | "assistant", content: m.content, id: `${sessionId}-${i}` })));
+      setCurrentSessionId(sessionId);
+    } else {
+      setCurrentSessionId(sessionId);
+      setMessages([]);
+    }
   };
 
   const deleteSession = async (sessionId: string) => {
-    if (!supabase) return;
-    try {
-      await supabase!.from("ai_chat_messages").delete().eq("project_id", sessionId);
-      await supabase!.from("projects").delete().eq("id", sessionId);
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-      if (currentSessionId === sessionId) clearChat();
-      setDeleteConfirm(null);
-    } catch {}
+    localChatSessions.delete(sessionId);
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    if (currentSessionId === sessionId) clearChat();
+    setDeleteConfirm(null);
   };
 
   const exportChat = () => {
@@ -504,8 +461,8 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
     <div className={`flex ${embedded ? "h-full" : "h-screen"} bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 transition-colors duration-300`}>
       {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      {/* Sidebar */}
-      {isSupabaseConfigured && dbStatus === "connected" && (
+      {/* Sidebar - always visible with LocalDB */}
+      {(
         <aside className={`fixed md:relative z-50 md:z-auto flex flex-col w-72 border-l border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
           <div className="p-4 border-b border-slate-200 dark:border-slate-800 space-y-3">
             <button onClick={clearChat} className="w-full px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 text-white text-sm font-medium shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all">
@@ -561,7 +518,7 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
           </div>
           <div className="p-3 border-t border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
-              <span className={`w-2 h-2 rounded-full ${statusColor[dbStatus]}`}></span>Supabase: {statusText[dbStatus]}
+              <span className={`w-2 h-2 rounded-full ${statusColor[dbStatus]}`}></span>قاعدة البيانات: {statusText[dbStatus]}
             </div>
             {user && (
               <button
@@ -594,11 +551,9 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
         {/* Header */}
         <header className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            {isSupabaseConfigured && dbStatus === "connected" && (
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
-              </button>
-            )}
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
             <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 text-white font-bold text-sm shadow-lg shadow-orange-500/20">HF</div>
             <div>
               <h1 className="text-lg font-bold text-slate-900 dark:text-white">{siteSettings.site_name}</h1>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, startTransition } from "react";
 import { useAuth } from "./AuthProvider";
-import { supabase, checkProfilesTable } from "@/lib/supabase";
+import { localProfiles, localChatSessions, localChatMessages, localAuth } from "@/lib/localdb";
 import type { UserProfile, UserActivityStats } from "@/lib/types";
 
 // ==================== AVATAR COMPONENT ====================
@@ -143,61 +143,12 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
 
   // Load profile data
   const loadProfile = useCallback(async () => {
-    if (!supabase || !user) return;
+    if (!user) return;
     setLoading(true);
     try {
-      const profilesTableExists = await checkProfilesTable();
-      if (!profilesTableExists) {
-        // Fallback: create minimal profile from auth data
-        setProfile({
-          id: user.id,
-          email: user.email || "",
-          role: isAdmin ? "admin" : "user",
-          display_name: user.email?.split("@")[0] || "",
-          avatar_url: "",
-          bio: "",
-          phone: "",
-          website: "",
-          location: "",
-          language_preference: "ar",
-          theme_preference: "system",
-          notifications_enabled: true,
-          last_seen: new Date().toISOString(),
-          created_at: user.created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-        setLoading(false);
-        return;
-      }
-
-      const { data, error: err } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      if (err) {
-        console.error("Load profile error:", err);
-        setProfile({
-          id: user.id,
-          email: user.email || "",
-          role: isAdmin ? "admin" : "user",
-          display_name: user.email?.split("@")[0] || "",
-          avatar_url: "",
-          bio: "",
-          phone: "",
-          website: "",
-          location: "",
-          language_preference: "ar",
-          theme_preference: "system",
-          notifications_enabled: true,
-          last_seen: new Date().toISOString(),
-          created_at: user.created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-      } else if (data) {
-        const p = data as UserProfile;
-        setProfile(p);
+      const p = localProfiles.getById(user.id);
+      if (p) {
+        setProfile(p as unknown as UserProfile);
         setEditForm({
           display_name: p.display_name || "",
           avatar_url: p.avatar_url || "",
@@ -211,43 +162,44 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
           theme_preference: p.theme_preference || "system",
           notifications_enabled: p.notifications_enabled ?? true,
         });
+      } else {
+        setProfile({
+          id: user.id,
+          email: user.email || "",
+          role: isAdmin ? "admin" : "user",
+          display_name: user.email?.split("@")[0] || "",
+          avatar_url: "",
+          bio: "",
+          phone: "",
+          website: "",
+          location: "",
+          language_preference: "ar",
+          theme_preference: "system",
+          notifications_enabled: true,
+          last_seen: new Date().toISOString(),
+          created_at: user.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
       }
 
-      // Load activity stats
-      try {
-        const { count: sessionCount } = await supabase
-          .from("projects")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id);
+      // Load activity stats from LocalDB
+      const sessionCount = localChatSessions.count(user.id);
+      const messageCount = localChatMessages.count(user.id);
+      const todayMsgCount = localChatMessages.countToday(user.id);
+      const createdAt = new Date(user.created_at || new Date());
+      const joinedDaysAgo = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+      const profileData = localProfiles.getById(user.id);
 
-        const { count: messageCount } = await supabase
-          .from("ai_chat_messages")
-          .select("id, project_id, projects!inner(user_id)", { count: "exact", head: true });
-
-        // Today's messages count
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const { count: todayMsgCount } = await supabase
-          .from("ai_chat_messages")
-          .select("id, project_id, projects!inner(user_id)", { count: "exact", head: true })
-          .gte("created_at", today.toISOString());
-
-        const createdAt = new Date(user.created_at || new Date());
-        const joinedDaysAgo = Math.floor(
-          (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24)
-        );
-
-        startTransition(() => {
-          setStats({
-            totalSessions: sessionCount || 0,
-            totalMessages: messageCount || 0,
-            todayMessages: todayMsgCount || 0,
-            streak: 0,
-            joinedDaysAgo,
-            lastActive: data?.last_seen || new Date().toISOString(),
-          });
+      startTransition(() => {
+        setStats({
+          totalSessions: sessionCount,
+          totalMessages: messageCount,
+          todayMessages: todayMsgCount,
+          streak: 0,
+          joinedDaysAgo,
+          lastActive: profileData?.last_seen || new Date().toISOString(),
         });
-      } catch {}
+      });
     } catch {
       // Silently handle errors
     } finally {
@@ -261,67 +213,45 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
 
   // Update last_seen on mount
   useEffect(() => {
-    if (supabase && user) {
-      (async () => {
-        try {
-          const { error: rpcError } = await supabase.rpc("update_last_seen");
-          if (rpcError) {
-            // Fallback: direct update
-            await supabase
-              .from("profiles")
-              .update({ last_seen: new Date().toISOString(), updated_at: new Date().toISOString() })
-              .eq("id", user.id);
-          }
-        } catch {
-          // Silently handle - last_seen update is non-critical
-        }
-      })();
+    if (user) {
+      localProfiles.updateLastSeen(user.id);
     }
   }, [user]);
 
   // Save profile edits
   const saveProfile = async () => {
-    if (!supabase || !user) return;
+    if (!user) return;
     setSaving(true);
     setError(null);
     setSaveSuccess(false);
 
     try {
-      const { error: err } = await supabase
-        .from("profiles")
-        .update({
-          display_name: editForm.display_name,
-          avatar_url: editForm.avatar_url,
-          bio: editForm.bio,
-          phone: editForm.phone,
-          website: editForm.website,
-          location: editForm.location,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id);
-
-      if (err) {
-        setError(err.message);
-      } else {
-        setSaveSuccess(true);
-        startTransition(() => {
-          setProfile((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  display_name: editForm.display_name,
-                  avatar_url: editForm.avatar_url,
-                  bio: editForm.bio,
-                  phone: editForm.phone,
-                  website: editForm.website,
-                  location: editForm.location,
-                  updated_at: new Date().toISOString(),
-                }
-              : prev
-          );
-        });
-        setTimeout(() => setSaveSuccess(false), 3000);
-      }
+      localProfiles.update(user.id, {
+        display_name: editForm.display_name,
+        avatar_url: editForm.avatar_url,
+        bio: editForm.bio,
+        phone: editForm.phone,
+        website: editForm.website,
+        location: editForm.location,
+      });
+      setSaveSuccess(true);
+      startTransition(() => {
+        setProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                display_name: editForm.display_name,
+                avatar_url: editForm.avatar_url,
+                bio: editForm.bio,
+                phone: editForm.phone,
+                website: editForm.website,
+                location: editForm.location,
+                updated_at: new Date().toISOString(),
+              }
+            : prev
+        );
+      });
+      setTimeout(() => setSaveSuccess(false), 3000);
     } catch {
       setError("حدث خطأ أثناء حفظ الملف الشخصي");
     } finally {
@@ -331,51 +261,42 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
 
   // Save settings
   const saveSettings = async () => {
-    if (!supabase || !user) return;
+    if (!user) return;
     setSaving(true);
     setError(null);
     setSaveSuccess(false);
 
     try {
-      const { error: err } = await supabase
-        .from("profiles")
-        .update({
-          language_preference: settingsForm.language_preference,
-          theme_preference: settingsForm.theme_preference,
-          notifications_enabled: settingsForm.notifications_enabled,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id);
-
-      if (err) {
-        setError(err.message);
-      } else {
-        setSaveSuccess(true);
-        startTransition(() => {
-          setProfile((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  language_preference: settingsForm.language_preference,
-                  theme_preference: settingsForm.theme_preference,
-                  notifications_enabled: settingsForm.notifications_enabled,
-                }
-              : prev
-          );
-        });
-        // Apply theme preference
-        if (settingsForm.theme_preference !== "system") {
-          const isDark = settingsForm.theme_preference === "dark";
-          if (isDark) {
-            document.documentElement.classList.add("dark");
-            localStorage.setItem("hf_theme", "dark");
-          } else {
-            document.documentElement.classList.remove("dark");
-            localStorage.setItem("hf_theme", "light");
-          }
+      localProfiles.update(user.id, {
+        language_preference: settingsForm.language_preference,
+        theme_preference: settingsForm.theme_preference,
+        notifications_enabled: settingsForm.notifications_enabled,
+      });
+      setSaveSuccess(true);
+      startTransition(() => {
+        setProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                language_preference: settingsForm.language_preference,
+                theme_preference: settingsForm.theme_preference,
+                notifications_enabled: settingsForm.notifications_enabled,
+              }
+            : prev
+        );
+      });
+      // Apply theme preference
+      if (settingsForm.theme_preference !== "system") {
+        const isDark = settingsForm.theme_preference === "dark";
+        if (isDark) {
+          document.documentElement.classList.add("dark");
+          localStorage.setItem("hf_theme", "dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+          localStorage.setItem("hf_theme", "light");
         }
-        setTimeout(() => setSaveSuccess(false), 3000);
       }
+      setTimeout(() => setSaveSuccess(false), 3000);
     } catch {
       setError("حدث خطأ أثناء حفظ الإعدادات");
     } finally {
@@ -385,7 +306,7 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
 
   // Change password
   const changePassword = async () => {
-    if (!supabase) return;
+    if (!user) return;
     setPasswordError(null);
     setPasswordSuccess(false);
 
@@ -399,11 +320,9 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
     }
 
     try {
-      const { error: err } = await supabase.auth.updateUser({
-        password: passwordForm.newPassword,
-      });
-      if (err) {
-        setPasswordError(err.message);
+      const result = localAuth.updatePassword(user.id, passwordForm.newPassword);
+      if (result.error) {
+        setPasswordError(result.error);
       } else {
         setPasswordSuccess(true);
         setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -1154,29 +1073,15 @@ function RecentSessions({ userId }: { userId: string }) {
   const [loadingSessions, setLoadingSessions] = useState(true);
 
   useEffect(() => {
-    async function load() {
-      if (!supabase || !userId) return;
+    function load() {
+      if (!userId) return;
       try {
-        const { data, error: err } = await supabase
-          .from("projects")
-          .select("id, name, created_at")
-          .eq("user_id", userId)
-          .eq("template", "chat")
-          .order("created_at", { ascending: false })
-          .limit(5);
-
-        if (!err && data) {
-          const sessionsWithCount = await Promise.all(
-            data.map(async (session) => {
-              const { count } = await supabase!
-                .from("ai_chat_messages")
-                .select("*", { count: "exact", head: true })
-                .eq("project_id", session.id);
-              return { ...session, messageCount: count || 0 };
-            })
-          );
-          startTransition(() => { setSessions(sessionsWithCount); });
-        }
+        const localSessions = localChatSessions.getByUserId(userId);
+        const recentSessions = localSessions.slice(0, 5).map((session) => {
+          const msgs = localChatMessages.getBySessionId(session.id);
+          return { id: session.id, name: session.name, created_at: session.created_at, messageCount: msgs.length };
+        });
+        startTransition(() => { setSessions(recentSessions); });
       } catch {} finally {
         setLoadingSessions(false);
       }

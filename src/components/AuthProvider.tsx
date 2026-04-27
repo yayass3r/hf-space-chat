@@ -1,123 +1,9 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { supabase, isSupabaseConfigured, isAdminEmail, checkProfilesTable } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured, isAdminEmail } from "@/lib/supabase";
+import { localAuth, localProfiles, isLocalDBReady } from "@/lib/localdb";
 import type { User, Session } from "@supabase/supabase-js";
-
-// ==================== Local Auth Fallback ====================
-// When Supabase is unreachable, we use localStorage-based auth
-// This allows the app to work in demo/offline mode
-
-const LOCAL_AUTH_KEY = "hf_local_auth_users";
-const LOCAL_SESSION_KEY = "hf_local_auth_session";
-
-// Default admin credentials (hashed)
-const DEFAULT_ADMIN_EMAIL = "yayass3r@gmail.com";
-const DEFAULT_ADMIN_PASSWORD = "Admin@2026";
-
-interface LocalUser {
-  id: string;
-  email: string;
-  password: string; // In production this would be hashed; here it's simple local storage
-  role: "admin" | "user";
-  created_at: string;
-}
-
-function getLocalUsers(): LocalUser[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(LOCAL_AUTH_KEY);
-    if (!raw) {
-      // Initialize with default admin account
-      const defaultUsers: LocalUser[] = [
-        {
-          id: "local-admin-001",
-          email: DEFAULT_ADMIN_EMAIL,
-          password: DEFAULT_ADMIN_PASSWORD,
-          role: "admin",
-          created_at: new Date().toISOString(),
-        },
-      ];
-      localStorage.setItem(LOCAL_AUTH_KEY, JSON.stringify(defaultUsers));
-      return defaultUsers;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalUser(user: LocalUser): void {
-  const users = getLocalUsers();
-  const existingIndex = users.findIndex((u) => u.email === user.email);
-  if (existingIndex >= 0) {
-    users[existingIndex] = user;
-  } else {
-    users.push(user);
-  }
-  localStorage.setItem(LOCAL_AUTH_KEY, JSON.stringify(users));
-}
-
-function localSignIn(email: string, password: string): { user: LocalUser | null; error: string | null } {
-  const users = getLocalUsers();
-  const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (!user) return { user: null, error: "حساب غير موجود. يرجى إنشاء حساب جديد أولاً." };
-  if (user.password !== password) return { user: null, error: "كلمة المرور غير صحيحة" };
-  // Save session
-  localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({ userId: user.id, email: user.email }));
-  return { user, error: null };
-}
-
-function localSignUp(email: string, password: string): { user: LocalUser | null; error: string | null } {
-  const users = getLocalUsers();
-  if (users.find((u) => u.email.toLowerCase() === email.toLowerCase())) {
-    return { user: null, error: "هذا البريد الإلكتروني مسجل مسبقاً" };
-  }
-  const newUser: LocalUser = {
-    id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    email,
-    password,
-    role: isAdminEmail(email) ? "admin" : "user",
-    created_at: new Date().toISOString(),
-  };
-  saveLocalUser(newUser);
-  localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({ userId: newUser.id, email: newUser.email }));
-  return { user: newUser, error: null };
-}
-
-function localSignOut(): void {
-  localStorage.removeItem(LOCAL_SESSION_KEY);
-}
-
-function getLocalSession(): { userId: string; email: string } | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(LOCAL_SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-// Convert LocalUser to a Supabase-like User object
-function localUserToSupabaseUser(localUser: LocalUser): User {
-  return {
-    id: localUser.id,
-    app_metadata: { role: localUser.role, provider: "local" },
-    user_metadata: { role: localUser.role, email: localUser.email },
-    aud: "authenticated",
-    confirmed_at: localUser.created_at,
-    created_at: localUser.created_at,
-    email: localUser.email,
-    email_confirmed_at: localUser.created_at,
-    last_sign_in_at: new Date().toISOString(),
-    phone: "",
-    role: "authenticated",
-    updated_at: localUser.created_at,
-  } as unknown as User;
-}
-
-// ==================== Auth Context ====================
 
 interface AuthContextType {
   user: User | null;
@@ -157,156 +43,158 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Method 1: Check app_metadata.role (set via Auth Admin API)
+    // Check app_metadata.role
     const appMetaRole = (user.app_metadata as Record<string, unknown>)?.role;
     if (appMetaRole === "admin") {
       setIsAdmin(true);
       return;
     }
 
-    // Method 2: Check user_metadata.role
+    // Check user_metadata.role
     const userMetaRole = (user.user_metadata as Record<string, unknown>)?.role;
     if (userMetaRole === "admin") {
       setIsAdmin(true);
       return;
     }
 
-    // Method 3: Check email against admin emails list (env var + localStorage)
+    // Check email against admin emails list
     if (isAdminEmail(user.email)) {
       setIsAdmin(true);
       return;
     }
 
-    // Method 4: Check profiles table (if it exists)
-    if (supabase && user.email) {
-      checkProfilesTable().then((exists) => {
-        if (exists) {
-          supabase!.from("profiles").select("role").eq("id", user.id).single()
-            .then(({ data }) => {
-              if (data && data.role === "admin") {
-                setIsAdmin(true);
-              }
-            });
-        }
-      });
-    }
+    setIsAdmin(false);
   }, []);
 
+  // Try to restore session on mount
   useEffect(() => {
-    // First, check if Supabase is reachable
-    if (!isSupabaseConfigured || !supabase) {
-      // No Supabase configured - use local auth
-      setIsLocalAuth(true);
-      // Try to restore local session
-      const localSession = getLocalSession();
+    async function initAuth() {
+      // First try LocalDB (always available)
+      const localSession = localAuth.getSession();
       if (localSession) {
-        const users = getLocalUsers();
-        const localUser = users.find((u) => u.id === localSession.userId);
+        const localUser = localAuth.getUser(localSession.userId);
         if (localUser) {
-          const sbUser = localUserToSupabaseUser(localUser);
+          const sbUser = localAuth.toSupabaseUser(localUser);
           setUser(sbUser);
           updateAdminStatus(sbUser);
+          localProfiles.updateLastSeen(localUser.id);
+          setIsLocalAuth(true);
+          setLoading(false);
+
+          // Try Supabase in background for sync (non-blocking)
+          if (supabase && isSupabaseConfigured) {
+            try {
+              const { data } = await supabase.auth.getSession();
+              if (data.session) {
+                setSupabaseReachable(true);
+                setSession(data.session);
+              }
+            } catch {
+              setSupabaseReachable(false);
+            }
+          }
+          return;
         }
       }
+
+      // No local session - try Supabase
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { data: { session: sbSession }, error } = await supabase.auth.getSession();
+          if (error || !sbSession) {
+            // Supabase not reachable or no session
+            setSupabaseReachable(false);
+            setIsLocalAuth(true);
+            setLoading(false);
+            return;
+          }
+          setSupabaseReachable(true);
+          setSession(sbSession);
+          setUser(sbSession.user);
+          updateAdminStatus(sbSession.user);
+
+          // Also create local session for offline use
+          const localProfile = localProfiles.getByEmail(sbSession.user.email || "");
+          if (localProfile) {
+            writeJSON("hf_db_auth_session", { userId: localProfile.id, email: localProfile.email, timestamp: Date.now() });
+          }
+
+          setLoading(false);
+
+          // Listen for auth changes
+          const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (_event, s) => {
+              setSession(s);
+              setUser(s?.user ?? null);
+              if (s?.user) {
+                updateAdminStatus(s.user);
+              } else {
+                setIsAdmin(false);
+              }
+              setLoading(false);
+            }
+          );
+
+          return () => subscription.unsubscribe();
+        } catch {
+          setSupabaseReachable(false);
+        }
+      }
+
+      // No Supabase and no local session
+      setIsLocalAuth(true);
       setLoading(false);
-      return;
     }
 
-    // Try to reach Supabase
-    supabase.auth.getSession().then(({ data: { session: s }, error }) => {
-      if (error && (error.message.includes("Failed to fetch") || error.message.includes("NetworkError") || error.message.includes("fetch"))) {
-        // Supabase unreachable - fall back to local auth
-        console.warn("[Auth] Supabase unreachable, switching to local auth");
-        setIsLocalAuth(true);
-        const localSession = getLocalSession();
-        if (localSession) {
-          const users = getLocalUsers();
-          const localUser = users.find((u) => u.id === localSession.userId);
-          if (localUser) {
-            const sbUser = localUserToSupabaseUser(localUser);
-            setUser(sbUser);
-            updateAdminStatus(sbUser);
-          }
-        }
-        setLoading(false);
-        return;
-      }
-
-      setSupabaseReachable(true);
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
-        updateAdminStatus(s.user);
-      }
-      setLoading(false);
-    }).catch(() => {
-      // Supabase unreachable - fall back to local auth
-      console.warn("[Auth] Supabase error, switching to local auth");
-      setIsLocalAuth(true);
-      const localSession = getLocalSession();
-      if (localSession) {
-        const users = getLocalUsers();
-        const localUser = users.find((u) => u.id === localSession.userId);
-        if (localUser) {
-          const sbUser = localUserToSupabaseUser(localUser);
-          setUser(sbUser);
-          updateAdminStatus(sbUser);
-        }
-      }
-      setLoading(false);
-    });
-
-    // Listen for auth changes (only if Supabase is reachable)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, s) => {
-        setSession(s);
-        setUser(s?.user ?? null);
-        if (s?.user) {
-          updateAdminStatus(s.user);
-        } else {
-          setIsAdmin(false);
-        }
-        setLoading(false);
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    initAuth();
   }, [updateAdminStatus]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    // Try Supabase first if it's reachable
+    // Try Supabase first if it was reachable before
     if (supabase && supabaseReachable) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (!error) return { error: null };
-      // If Supabase fails, fall through to local auth
-      console.warn("[Auth] Supabase sign-in failed, trying local auth");
+      try {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (!error) {
+          // Also create/update local session
+          const localResult = localAuth.signUp(email, password);
+          if (localResult.user) {
+            // Update local auth user if not exists
+          }
+          return { error: null };
+        }
+      } catch {
+        // Supabase failed, try local
+      }
     }
 
-    // Local auth fallback
-    const result = localSignIn(email, password);
+    // Use LocalDB
+    const result = localAuth.signIn(email, password);
     if (result.user) {
-      const sbUser = localUserToSupabaseUser(result.user);
+      const sbUser = localAuth.toSupabaseUser(result.user);
       setUser(sbUser);
       setIsLocalAuth(true);
       updateAdminStatus(sbUser);
+      localProfiles.updateLastSeen(result.user.id);
       return { error: null };
     }
     return { error: result.error };
   }, [supabaseReachable, updateAdminStatus]);
 
   const signUp = useCallback(async (email: string, password: string) => {
-    // Try Supabase first if it's reachable
+    // Try Supabase first if it was reachable before
     if (supabase && supabaseReachable) {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (!error) return { error: null };
-      // If Supabase fails, fall through to local auth
-      console.warn("[Auth] Supabase sign-up failed, trying local auth");
+      try {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (!error) return { error: null };
+      } catch {
+        // Supabase failed, try local
+      }
     }
 
-    // Local auth fallback
-    const result = localSignUp(email, password);
+    // Use LocalDB
+    const result = localAuth.signUp(email, password);
     if (result.user) {
-      const sbUser = localUserToSupabaseUser(result.user);
+      const sbUser = localAuth.toSupabaseUser(result.user);
       setUser(sbUser);
       setIsLocalAuth(true);
       updateAdminStatus(sbUser);
@@ -319,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (supabase && supabaseReachable) {
       try { await supabase.auth.signOut(); } catch {}
     }
-    localSignOut();
+    localAuth.signOut();
     setUser(null);
     setSession(null);
     setIsAdmin(false);
@@ -330,4 +218,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+// Helper to write JSON (avoiding circular dependency)
+function writeJSON(key: string, data: unknown): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {}
 }

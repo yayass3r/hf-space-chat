@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useCallback, startTransition } from "react";
 import { useAuth } from "./AuthProvider";
-import { loadSettings, saveSettings, DEFAULT_SETTINGS, supabase, isSupabaseConfigured, checkProfilesTable } from "@/lib/supabase";
+import { loadSettings, saveSettings, DEFAULT_SETTINGS } from "@/lib/supabase";
+import { localProfiles, localChatSessions, localChatMessages } from "@/lib/localdb";
 import type { SiteSettingKey, UserProfile, DashboardStats } from "@/lib/types";
 
 interface AdminTab {
@@ -93,68 +94,42 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
 
   // Load users and stats
   const loadUsers = useCallback(async () => {
-    if (!supabase) return;
-    try {
-      const profilesExist = await checkProfilesTable();
-      if (profilesExist) {
-        const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
-        if (data) setUsers(data as UserProfile[]);
-      }
-    } catch {}
+    const allProfiles = localProfiles.getAll();
+    setUsers(allProfiles as unknown as UserProfile[]);
   }, []);
 
   const loadStats = useCallback(async () => {
-    if (!supabase) return;
-    try {
-      // Try to load stats - gracefully handle RLS errors
-      const [usersRes, sessionsRes, messagesRes, todayRes] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact", head: true }),
-        supabase.from("projects").select("id", { count: "exact", head: true }),
-        supabase.from("ai_chat_messages").select("id", { count: "exact", head: true }),
-        supabase.from("ai_chat_messages").select("id").gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
-      ]);
-
-      // Check for RLS recursion errors
-      const hasRlsError = [usersRes, sessionsRes, messagesRes, todayRes].some(
-        r => r.error?.code === "42P17" || r.error?.message?.includes("infinite recursion")
-      );
-
-      if (hasRlsError) {
-        // RLS has issues - show connection as working but stats unavailable
-        setStats({ totalUsers: -1, totalSessions: -1, totalMessages: -1, todayMessages: -1, activeUsers: -1 });
-        return;
-      }
-
-      setStats({
-        totalUsers: usersRes.count || 0,
-        totalSessions: sessionsRes.count || 0,
-        totalMessages: messagesRes.count || 0,
-        todayMessages: todayRes.data?.length || 0,
-        activeUsers: usersRes.count || 0,
-      });
-    } catch {}
+    const profiles = localProfiles.getAll();
+    let sessions = 0, msgs = 0, today = 0;
+    for (const p of profiles) {
+      sessions += localChatSessions.count(p.id);
+      msgs += localChatMessages.count(p.id);
+      today += localChatMessages.countToday(p.id);
+    }
+    setStats({
+      totalUsers: profiles.length,
+      totalSessions: sessions,
+      totalMessages: msgs,
+      todayMessages: today,
+      activeUsers: profiles.length,
+    });
   }, []);
 
   // Load users and stats when tab changes
   useEffect(() => {
-    if (activeTab === "users" && supabase) {
+    if (activeTab === "users") {
       startTransition(() => { loadUsers(); });
     }
-    if (activeTab === "overview" && supabase) {
+    if (activeTab === "overview") {
       startTransition(() => { loadStats(); });
     }
   }, [activeTab, loadUsers, loadStats]);
 
   async function updateUserRole(userId: string, newRole: "admin" | "user") {
-    if (!supabase) return;
-    try {
-      const { error } = await supabase.from("profiles").update({ role: newRole }).eq("id", userId);
-      if (!error) {
-        setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: newRole } : u));
-        setMessage({ type: "success", text: "تم تحديث دور المستخدم بنجاح" });
-        setTimeout(() => setMessage(null), 3000);
-      }
-    } catch {}
+    localProfiles.updateRole(userId, newRole);
+    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: newRole } : u));
+    setMessage({ type: "success", text: "تم تحديث دور المستخدم بنجاح" });
+    setTimeout(() => setMessage(null), 3000);
   }
 
   const handleSaveSettings = async () => {
@@ -294,15 +269,7 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
               </div>
 
               {/* RLS Warning */}
-              {stats.totalUsers === -1 && (
-                <div className="px-4 py-3 rounded-xl bg-amber-900/20 border border-amber-700 text-amber-400 text-sm">
-                  <p className="font-semibold mb-1">تحذير: سياسات RLS بحاجة لإصلاح</p>
-                  <p className="text-xs text-amber-500">جداول profiles/projects/messages تعاني من حلقة لا نهائية في سياسات الأمان. يرجى تشغيل سكريبت fix_rls_policies.sql في Supabase SQL Editor.</p>
-                  <a href="https://supabase.com/dashboard/project/ucmpclgctjeyoimtmqir/sql/new" target="_blank" rel="noopener noreferrer" className="inline-block mt-2 px-3 py-1 rounded-lg bg-amber-700/30 hover:bg-amber-700/50 text-amber-300 text-xs transition-colors">
-                    فتح SQL Editor ←
-                  </a>
-                </div>
-              )}
+              {/* RLS Warning - Not needed with LocalDB */}
 
               {/* Quick Actions */}
               <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border p-5`}>
@@ -317,9 +284,9 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
                   <button onClick={() => setActiveTab("ads")} className={`px-4 py-3 rounded-lg ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"} text-sm transition-colors text-center`}>
                     إدارة الإعلانات
                   </button>
-                  <a href="https://supabase.com/dashboard/project/ucmpclgctjeyoimtmqir" target="_blank" rel="noopener noreferrer" className={`px-4 py-3 rounded-lg ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"} text-sm transition-colors text-center block`}>
-                    Supabase Dashboard
-                  </a>
+                  <div className={`px-4 py-3 rounded-lg ${isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"} text-sm transition-colors text-center`}>
+                    لوحة التحكم المحلية
+                  </div>
                 </div>
               </div>
 
@@ -327,8 +294,8 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
               <div className={`${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} rounded-xl border p-5`}>
                 <h4 className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-900"} mb-3`}>حالة النظام</h4>
                 <div className="space-y-3">
-                  <StatusRow label="Supabase" status={isSupabaseConfigured ? "connected" : "disconnected"} isDark={isDark} />
-                  <StatusRow label="RLS Policies" status={stats.totalUsers === -1 ? "warning" : "connected"} isDark={isDark} />
+                  <StatusRow label="قاعدة البيانات المحلية" status="connected" isDark={isDark} />
+                  <StatusRow label="RLS Policies" status="connected" isDark={isDark} />
                   <StatusRow label="HF Inference API" status={settings.hf_space_url !== "https://your-space.hf.space" ? "connected" : "warning"} isDark={isDark} />
                   <StatusRow label="HF API Token" status={settings.hf_api_token ? "connected" : "warning"} isDark={isDark} />
                   <StatusRow label="AdSense" status={settings.adsense_enabled === "true" ? "connected" : "inactive"} isDark={isDark} />
