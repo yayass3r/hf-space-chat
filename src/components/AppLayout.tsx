@@ -280,86 +280,6 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
   );
 }
 
-// ==================== MOBILE BOTTOM NAV ====================
-function MobileBottomNav({ currentPage, navigate }: { currentPage: AppPage; navigate: (page: AppPage) => void }) {
-  const mobileNavItems: { id: AppPage; label: string; icon: React.ReactNode }[] = [
-    {
-      id: "home",
-      label: "الرئيسية",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      ),
-    },
-    {
-      id: "chat",
-      label: "المحادثة",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-      ),
-    },
-    {
-      id: "builder",
-      label: "بناء",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-        </svg>
-      ),
-    },
-    {
-      id: "deploy",
-      label: "نشر",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-        </svg>
-      ),
-    },
-    {
-      id: "profile",
-      label: "الملف",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      ),
-    },
-  ];
-
-  return (
-    <nav className="mobile-bottom-nav lg:hidden" dir="rtl">
-      <div className="flex items-center justify-around">
-        {mobileNavItems.map((item) => {
-          const isActive = currentPage === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => navigate(item.id)}
-              className={`relative flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 ${
-                isActive
-                  ? "text-orange-600 dark:text-orange-400"
-                  : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
-              }`}
-            >
-              {isActive && (
-                <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-gradient-to-r from-orange-500 to-yellow-400" />
-              )}
-              <span className={`transition-transform duration-200 ${isActive ? "scale-110" : ""}`}>
-                {item.icon}
-              </span>
-              <span className={`text-[10px] font-medium ${isActive ? "font-bold" : ""}`}>{item.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </nav>
-  );
-}
-
 // ==================== MAIN APP LAYOUT ====================
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, signOut } = useAuth();
@@ -367,8 +287,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [isDark, setIsDark] = useState(() =>
     typeof window !== "undefined" ? document.documentElement.classList.contains("dark") : false
   );
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "disconnected">("checking");
   const [siteSettings, setSiteSettings] = useState<SiteSettings>({ ...DEFAULT_SETTINGS });
@@ -412,9 +331,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     load();
   }, []);
 
+  // Auto-close sidebar when navigating to builder or profile
+  useEffect(() => {
+    if (currentPage === "builder" || currentPage === "profile") {
+      setSidebarOpen(false);
+    }
+  }, [currentPage]);
+
   const handleNavigate = useCallback((page: AppPage) => {
     navigate(page);
-    setMobileMenuOpen(false);
+    setSidebarOpen(false);
   }, [navigate]);
 
   // Get page title and breadcrumb
@@ -437,25 +363,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 transition-colors duration-300" dir="rtl">
-      {/* Mobile overlay */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
+      {/* Overlay backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
-      {/* Sidebar - Enhanced with glass effect */}
-      <aside className={`fixed lg:relative z-50 lg:z-auto flex flex-col h-full border-l transition-all duration-300 ${
-        sidebarCollapsed ? "w-16" : "w-64"
-      } ${
-        mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      } sidebar-glass border-slate-200/80 dark:border-slate-800/80`}>
+      {/* Slide-in Sidebar */}
+      <aside
+        className={`fixed top-0 right-0 z-50 flex flex-col h-full w-72 border-l transition-transform duration-300 ease-in-out sidebar-glass border-slate-200/80 dark:border-slate-800/80 ${
+          sidebarOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
 
         {/* Sidebar Header */}
-        <div className={`p-4 border-b border-slate-200/60 dark:border-slate-800/60 ${sidebarCollapsed ? "px-2" : ""}`}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-orange-500/25 shrink-0">
-              HF
-            </div>
-            {!sidebarCollapsed && (
+        <div className="p-4 border-b border-slate-200/60 dark:border-slate-800/60">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-orange-500/25 shrink-0">
+                HF
+              </div>
               <div className="flex-1 min-w-0">
                 <h1 className="text-sm font-bold text-slate-900 dark:text-white truncate">{siteSettings.site_name}</h1>
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
@@ -463,7 +392,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   {statusText[dbStatus]}
                 </div>
               </div>
-            )}
+            </div>
+            {/* Close button */}
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="إغلاق القائمة"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -475,24 +414,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <button
                 key={item.id}
                 onClick={() => handleNavigate(item.id)}
-                className={`w-full flex items-center gap-3 rounded-xl transition-all duration-200 ${
-                  sidebarCollapsed ? "px-2 py-3 justify-center" : "px-3 py-2.5"
-                } ${
+                className={`w-full flex items-center gap-3 rounded-xl transition-all duration-200 px-3 py-2.5 ${
                   isActive
                     ? `bg-gradient-to-r ${item.color} text-white shadow-lg nav-active-glow`
                     : isDark
                       ? "text-slate-400 hover:text-white hover:bg-slate-800/60"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
                 }`}
-                title={sidebarCollapsed ? item.label : undefined}
               >
                 <span className={`shrink-0 transition-transform duration-200 ${isActive ? "scale-110" : ""}`}>
                   {item.icon}
                 </span>
-                {!sidebarCollapsed && (
-                  <span className="text-sm font-medium">{item.label}</span>
-                )}
-                {!sidebarCollapsed && item.badge && (
+                <span className="text-sm font-medium">{item.label}</span>
+                {item.badge && (
                   <span className="mr-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white badge-glow">
                     {item.badge}
                   </span>
@@ -503,47 +437,31 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Sidebar Footer */}
-        <div className={`border-t border-slate-200/60 dark:border-slate-800/60 ${sidebarCollapsed ? "p-2" : "p-3"} space-y-2`}>
+        <div className="border-t border-slate-200/60 dark:border-slate-800/60 p-3 space-y-2">
           {/* User profile section */}
           {user && (
             <button
               onClick={() => handleNavigate("profile")}
-              className={`w-full flex items-center gap-2.5 rounded-xl transition-all duration-200 ${
-                sidebarCollapsed ? "px-1 py-2 justify-center" : "px-2.5 py-2"
-              } ${isDark ? "bg-slate-800/60 hover:bg-slate-700/60" : "bg-slate-100/80 hover:bg-slate-200/80"} hover:shadow-md`}
-              title={sidebarCollapsed ? "الملف الشخصي" : undefined}
+              className={`w-full flex items-center gap-2.5 rounded-xl transition-all duration-200 px-2.5 py-2 ${isDark ? "bg-slate-800/60 hover:bg-slate-700/60" : "bg-slate-100/80 hover:bg-slate-200/80"} hover:shadow-md`}
             >
               <UserAvatar profile={userProfile} size="sm" />
-              {!sidebarCollapsed && (
-                <div className="flex-1 min-w-0 text-right">
-                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
-                    {userProfile?.display_name || user.email?.split("@")[0]}
-                  </p>
-                  <p className="text-[10px] text-slate-400 truncate" dir="ltr">{user.email}</p>
-                </div>
-              )}
-              {!sidebarCollapsed && (
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
-                  isAdmin ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
-                }`}>
-                  {isAdmin ? "مسؤول" : "مستخدم"}
-                </span>
-              )}
+              <div className="flex-1 min-w-0 text-right">
+                <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
+                  {userProfile?.display_name || user.email?.split("@")[0]}
+                </p>
+                <p className="text-[10px] text-slate-400 truncate" dir="ltr">{user.email}</p>
+              </div>
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                isAdmin ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
+              }`}>
+                {isAdmin ? "مسؤول" : "مستخدم"}
+              </span>
             </button>
           )}
 
-          {/* Theme & Collapse Controls */}
-          <div className={`flex items-center ${sidebarCollapsed ? "flex-col gap-2" : "gap-2"}`}>
+          {/* Theme & Logout Controls */}
+          <div className="flex items-center justify-between">
             <ThemeToggle isDark={isDark} />
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors hidden lg:block"
-              title={sidebarCollapsed ? "توسيع القائمة" : "تصغير القائمة"}
-            >
-              <svg className={`w-5 h-5 transition-transform duration-300 ${sidebarCollapsed ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-              </svg>
-            </button>
             <button
               onClick={signOut}
               className="p-2 rounded-lg text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -557,15 +475,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 pb-14 lg:pb-0">
-        {/* Top Header Bar - Enhanced */}
+      {/* Main Content - Full width since sidebar is overlay */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Header Bar */}
         <header className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-200/60 dark:border-slate-800/60 glass-strong">
           <div className="flex items-center gap-3">
-            {/* Mobile menu button */}
+            {/* Menu toggle button - always visible */}
             <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2.5 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 shadow-sm border border-slate-200/60 dark:border-slate-700/60"
+              title="فتح القائمة"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -600,27 +519,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2">
             {/* Notification Center */}
             <NotificationCenter />
-            {/* Quick navigation for mobile (hidden since we have bottom nav now) */}
-            <div className="hidden items-center gap-1 lg:hidden">
-              {(["home", "chat", "builder", "deploy"] as AppPage[]).map((page) => {
-                const item = NAV_ITEMS.find(i => i.id === page);
-                if (!item) return null;
-                return (
-                  <button
-                    key={page}
-                    onClick={() => handleNavigate(page)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      currentPage === page
-                        ? "bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400"
-                        : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    }`}
-                    title={item.label}
-                  >
-                    {item.icon}
-                  </button>
-                );
-              })}
-            </div>
           </div>
         </header>
 
@@ -629,9 +527,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-
-      {/* Mobile Bottom Navigation */}
-      <MobileBottomNav currentPage={currentPage} navigate={navigate} />
     </div>
   );
 }
