@@ -9,6 +9,7 @@ import UserProfile from "@/components/UserProfile";
 import DeploymentHub from "@/components/DeploymentHub";
 import AppLayout, { HomePage } from "@/components/AppLayout";
 import { HashRouterProvider, useRouter } from "@/components/HashRouter";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 function AppContent() {
   const { user, isAdmin, loading } = useAuth();
@@ -95,10 +96,12 @@ function AppContent() {
 
 export default function Home() {
   return (
-    <AuthProvider>
-      <HashRouterProvider>
-        <AppContent />
-      </HashRouterProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <HashRouterProvider>
+          <AppContent />
+        </HashRouterProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

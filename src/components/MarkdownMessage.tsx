@@ -76,13 +76,14 @@ export default function MarkdownMessage({ content }: MarkdownMessageProps) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          code({ className, children, ...props }) {
+          code({ className, children, node, ref, ...props }) {
             const match = /language-(\w+)/.exec(className || "");
-            const isInline = !match && !className;
+            // FIXED: Properly detect inline code - no language class AND not a block code element
+            const isInline = !match;
             
             if (isInline) {
               return (
-                <code className={className} {...props}>
+                <code className={className}>
                   {children}
                 </code>
               );

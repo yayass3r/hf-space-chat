@@ -179,6 +179,7 @@ export async function loadSettings(): Promise<SiteSettings> {
     "https://your-space.hf.space/",
     "https://.hf.space",
     "http://your-space.hf.space",
+    "http://your-space.hf.space/",
   ];
   const WRONG_API_PATHS = [
     "/api/predict",
@@ -187,7 +188,8 @@ export async function loadSettings(): Promise<SiteSettings> {
     "/api/v1/predict",
   ];
 
-  if (!defaults.hf_space_url || PLACEHOLDER_URLS.some(p => defaults.hf_space_url.startsWith(p.replace("/", "")))) {
+  // FIXED: Properly check if URL matches any placeholder (exact match or starts with)
+  if (!defaults.hf_space_url || PLACEHOLDER_URLS.includes(defaults.hf_space_url) || PLACEHOLDER_URLS.some(p => defaults.hf_space_url === p || defaults.hf_space_url === p.replace(/\/$/, ""))) {
     defaults.hf_space_url = DEFAULT_SETTINGS.hf_space_url;
   }
   if (!defaults.hf_api_path || WRONG_API_PATHS.includes(defaults.hf_api_path)) {

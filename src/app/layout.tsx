@@ -58,11 +58,27 @@ export default function RootLayout({
             `,
           }}
         />
-        {/* Google AdSense - loaded once here, removed duplicate from AdBanner.tsx */}
+        {/* Google AdSense - loaded once here, only if enabled in settings (fallback: check localStorage) */}
         <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2304503997296254"
-          crossOrigin="anonymous"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var settings = localStorage.getItem('hf_site_settings');
+                  if (settings) {
+                    var parsed = JSON.parse(settings);
+                    if (parsed.adsense_enabled === 'true' && parsed.adsense_client_id) {
+                      var s = document.createElement('script');
+                      s.async = true;
+                      s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + parsed.adsense_client_id;
+                      s.crossOrigin = 'anonymous';
+                      document.head.appendChild(s);
+                    }
+                  }
+                } catch(e) {}
+              })();
+            `,
+          }}
         />
       </head>
       <body className="min-h-full flex flex-col font-sans">{children}</body>

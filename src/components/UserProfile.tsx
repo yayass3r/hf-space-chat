@@ -467,9 +467,19 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
     );
   }
 
-  // isDark is available for future use in profile UI
-  const _isDark = typeof window !== "undefined" && document.documentElement.classList.contains("dark");
-  void _isDark;
+  // Dark mode detection for fullscreen profile page
+  const [isDark, setIsDark] = useState(() =>
+    typeof window !== "undefined" ? document.documentElement.classList.contains("dark") : false
+  );
+
+  // Sync dark mode via MutationObserver
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains("dark"));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 transition-colors duration-300" dir="rtl">
