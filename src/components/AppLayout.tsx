@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback, startTransition } from "react";
 import { useAuth } from "./AuthProvider";
 import { useRouter, type AppPage } from "./HashRouter";
+import { useTheme } from "./ThemeContext";
 import { supabase, checkSupabaseConnection, loadSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS, type SiteSettings } from "@/lib/supabase";
+import { localProfiles } from "@/lib/localdb";
 import type { UserProfile } from "@/lib/types";
 import { UserAvatar } from "./UserProfile";
 
@@ -86,19 +88,23 @@ const NAV_ITEMS: NavItem[] = [
     adminOnly: true,
     color: "from-amber-500 to-orange-400",
   },
+  {
+    id: "settings",
+    label: "الإعدادات",
+    desc: "تخصيص التطبيق",
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
+    color: "from-slate-500 to-slate-400",
+  },
 ];
 
 // ==================== THEME TOGGLE ====================
-function ThemeToggle({ isDark, compact }: { isDark: boolean; compact?: boolean }) {
-  const toggleTheme = () => {
-    if (isDark) {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("hf_theme", "light");
-    } else {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("hf_theme", "dark");
-    }
-  };
+function ThemeToggle({ compact }: { compact?: boolean }) {
+  const { isDark, toggleTheme } = useTheme();
 
   return (
     <button
@@ -109,6 +115,7 @@ function ThemeToggle({ isDark, compact }: { isDark: boolean; compact?: boolean }
           : "text-indigo-500 hover:bg-indigo-50 hover:text-indigo-600"
       }`}
       title={isDark ? "الوضع الفاتح" : "الوضع المظلم"}
+      aria-label={isDark ? "الوضع الفاتح" : "الوضع المظلم"}
     >
       {isDark ? (
         <svg className={`${compact ? "w-4 h-4" : "w-5 h-5"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -125,8 +132,8 @@ function ThemeToggle({ isDark, compact }: { isDark: boolean; compact?: boolean }
 
 // ==================== HOME PAGE ====================
 function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; created_at?: string } | null; isAdmin: boolean; }) {
-  const { navigate } = useRouter();
-  const isDark = typeof window !== "undefined" && document.documentElement.classList.contains("dark");
+  const { navigate, goBack, canGoBack } = useRouter();
+  const { isDark } = useTheme();
   const [stats, setStats] = useState({ sessions: 0, messages: 0, projects: 0 });
   const [siteSettings, setSiteSettings] = useState<SiteSettings>({ ...DEFAULT_SETTINGS });
 
@@ -300,31 +307,33 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
 // ==================== MAIN APP LAYOUT ====================
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, signOut } = useAuth();
-  const { currentPage, navigate } = useRouter();
-  const [isDark, setIsDark] = useState(() =>
-    typeof window !== "undefined" ? document.documentElement.classList.contains("dark") : false
-  );
+  const { currentPage, navigate, goBack, canGoBack } = useRouter();
+  const { isDark, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "disconnected">("checking");
   const [siteSettings, setSiteSettings] = useState<SiteSettings>({ ...DEFAULT_SETTINGS });
 
-  // Sync dark mode
+  // Load user profile - try Supabase first, then LocalDB fallback
   useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
-
-  // Load user profile
-  useEffect(() => {
-    if (!supabase || !user) return;
+    if (!user) return;
     async function loadProfile() {
       try {
-        const { data } = await supabase!.from("profiles").select("*").eq("id", user!.id).single();
-        if (data) startTransition(() => { setUserProfile(data as UserProfile); });
+        // Try Supabase first
+        if (supabase) {
+          const { data } = await supabase.from("profiles").select("*").eq("id", user!.id).single();
+          if (data) {
+            startTransition(() => { setUserProfile(data as UserProfile); });
+            return;
+          }
+        }
+      } catch {}
+      // Fallback to LocalDB
+      try {
+        const localProfile = localProfiles.getById(user!.id);
+        if (localProfile) {
+          startTransition(() => { setUserProfile(localProfile as unknown as UserProfile); });
+        }
       } catch {}
     }
     loadProfile();
@@ -370,8 +379,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const statusColor = { checking: "bg-yellow-400", connected: "bg-emerald-400", disconnected: "bg-red-400" };
   const statusText = { checking: "جاري الفحص...", connected: "متصل", disconnected: "غير متصل" };
 
-  // Check if current page is fullscreen (builder, profile)
-  const isFullscreenPage = currentPage === "builder" || currentPage === "profile";
+  // Check if current page is fullscreen (builder, profile, admin, settings)
+  const isFullscreenPage = currentPage === "builder" || currentPage === "profile" || currentPage === "admin" || currentPage === "settings";
 
   // For fullscreen pages, render without layout
   if (isFullscreenPage) {
@@ -417,6 +426,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => setSidebarOpen(false)}
               className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-90"
+              aria-label="إغلاق القائمة"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -444,7 +454,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-1 space-y-1">
+        <nav className="flex-1 overflow-y-auto px-3 py-1 space-y-1" aria-label="التنقل الرئيسي">
           <div className={`text-[10px] font-bold uppercase tracking-wider mb-2 px-3 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
             التنقل
           </div>
@@ -454,6 +464,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <button
                 key={item.id}
                 onClick={() => handleNavigate(item.id)}
+                aria-current={isActive ? "page" : undefined}
                 className={`w-full flex items-center gap-3 rounded-xl transition-all duration-200 px-3 py-2.5 group ${
                   isActive
                     ? `bg-gradient-to-r ${item.color} text-white shadow-lg`
@@ -485,11 +496,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className={`p-3 space-y-2 border-t ${isDark ? "border-slate-800/60" : "border-slate-100"}`}>
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-1">
-              <ThemeToggle isDark={isDark} compact />
+              <ThemeToggle compact />
               <button
                 onClick={() => handleNavigate("profile")}
                 className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                 title="الملف الشخصي"
+                aria-label="الملف الشخصي"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -515,7 +527,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Minimal Header */}
         <header className={`flex items-center justify-between px-4 sm:px-6 h-14 border-b transition-colors ${
           isDark ? "border-slate-800/60 bg-slate-950/80" : "border-slate-200/80 bg-white/80"
-        } backdrop-blur-xl`}>
+        } backdrop-blur-xl`} role="banner">
           <div className="flex items-center gap-3">
             {/* Menu toggle */}
             <button
@@ -526,6 +538,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
               }`}
               title="القائمة"
+              aria-label="القائمة"
             >
               {sidebarOpen ? (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -538,7 +551,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               )}
             </button>
 
-            {/* Page title */}
+            {/* Back button when available */}
+            {canGoBack && (
+              <button
+                onClick={goBack}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="رجوع"
+                aria-label="رجوع"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            )}
+
+            {/* Page title with breadcrumb */}
             <div className="flex items-center gap-2">
               {currentPage !== "home" && (
                 <button
@@ -569,7 +596,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]} ${dbStatus === "connected" ? "animate-pulse" : ""}`}></span>
               {statusText[dbStatus]}
             </div>
-            <ThemeToggle isDark={isDark} compact />
+            <ThemeToggle compact />
           </div>
         </header>
 

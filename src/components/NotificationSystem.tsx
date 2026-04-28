@@ -226,6 +226,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (notifications.length > 0) {
       saveToStorage(notifications);
+    } else {
+      // Clear storage when all notifications are dismissed/removed
+      if (typeof window !== "undefined") {
+        try { localStorage.removeItem(STORAGE_KEY); } catch {}
+      }
     }
   }, [notifications]);
 
@@ -830,19 +835,19 @@ if (typeof document !== "undefined") {
       .toast-progress {
         animation: toastProgress 5s linear forwards;
       }
-      @keyframes fadeInDown {
+      @keyframes notifFadeInDown {
         from { opacity: 0; transform: translateY(-10px); }
         to { opacity: 1; transform: translateY(0); }
       }
       .animate-fade-in-down {
-        animation: fadeInDown 0.3s ease-out;
+        animation: notifFadeInDown 0.3s ease-out;
       }
-      @keyframes fadeInScale {
+      @keyframes notifFadeInScale {
         from { opacity: 0; transform: scale(0.95); }
         to { opacity: 1; transform: scale(1); }
       }
       .animate-fade-in-scale {
-        animation: fadeInScale 0.2s ease-out;
+        animation: notifFadeInScale 0.2s ease-out;
       }
     `;
     document.head.appendChild(style);

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, startTransition } from "react";
 import { useAuth } from "./AuthProvider";
+import { useTheme } from "./ThemeContext";
 import { localProfiles, localChatSessions, localChatMessages, localAuth } from "@/lib/localdb";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import type { UserProfile, UserActivityStats } from "@/lib/types";
@@ -99,7 +100,7 @@ function StatCard({
 }
 
 // ==================== MAIN USER PROFILE COMPONENT ====================
-export default function UserProfile({ onClose }: { onClose: () => void }) {
+export default function UserProfile({ onClose, initialTab }: { onClose: () => void; initialTab?: string }) {
   const { user, isAdmin, signOut } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<UserActivityStats>({
@@ -110,7 +111,10 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
     joinedDaysAgo: 0,
     lastActive: "",
   });
-  const [activeTab, setActiveTab] = useState<"overview" | "edit" | "activity" | "settings">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "edit" | "activity" | "settings">(() => {
+    if (initialTab === "settings") return "settings";
+    return "overview";
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -428,6 +432,9 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // Dark mode - uses ThemeContext for consistent state
+  const { isDark } = useTheme();
+
   // Loading state
   if (loading) {
     return (
@@ -447,20 +454,6 @@ export default function UserProfile({ onClose }: { onClose: () => void }) {
       </div>
     );
   }
-
-  // Dark mode detection for fullscreen profile page
-  const [isDark, setIsDark] = useState(() =>
-    typeof window !== "undefined" ? document.documentElement.classList.contains("dark") : false
-  );
-
-  // Sync dark mode via MutationObserver
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 transition-colors duration-300" dir="rtl">

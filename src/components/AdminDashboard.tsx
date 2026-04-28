@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, startTransition } from "react";
 import { useAuth } from "./AuthProvider";
+import { useTheme } from "./ThemeContext";
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from "@/lib/supabase";
 import { localProfiles, localChatSessions, localChatMessages } from "@/lib/localdb";
 import { supabase, isSupabaseConfigured, checkSupabaseConnection } from "@/lib/supabase";
@@ -15,6 +16,7 @@ interface AdminTab {
 
 export default function AdminDashboard({ onClose }: { onClose: () => void }) {
   const { signOut, user } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState("overview");
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
@@ -22,22 +24,6 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [stats, setStats] = useState<DashboardStats>({ totalUsers: 0, totalSessions: 0, totalMessages: 0, todayMessages: 0, activeUsers: 0 });
-  // Initialize from DOM (set by inline script in layout.tsx before paint)
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window !== "undefined") {
-      return document.documentElement.classList.contains("dark");
-    }
-    return false;
-  });
-
-  // Sync with global dark mode via MutationObserver
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
 
   const tabs: AdminTab[] = [
     {
@@ -160,10 +146,10 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
   // Load users and stats when tab changes
   useEffect(() => {
     if (activeTab === "users") {
-      startTransition(() => { loadUsers(); });
+      loadUsers();
     }
     if (activeTab === "overview") {
-      startTransition(() => { loadStats(); });
+      loadStats();
     }
   }, [activeTab, loadUsers, loadStats]);
 
@@ -209,12 +195,9 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Toggle theme
-  const toggleTheme = () => {
-    const newDark = !isDark;
-    setIsDark(newDark);
-    if (newDark) { document.documentElement.classList.add("dark"); localStorage.setItem("hf_theme", "dark"); }
-    else { document.documentElement.classList.remove("dark"); localStorage.setItem("hf_theme", "light"); }
+  // Toggle theme (uses ThemeContext)
+  const handleToggleTheme = () => {
+    toggleTheme();
   };
 
   if (loading) {
@@ -269,7 +252,7 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
         <div className={`p-3 border-t ${isDark ? "border-slate-800" : "border-slate-200"} space-y-2`}>
           {/* Theme toggle in admin */}
           <button
-            onClick={toggleTheme}
+            onClick={handleToggleTheme}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
               isDark ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
             }`}
@@ -290,7 +273,7 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
             </svg>
-            العودة للمحادثة
+            العودة للرئيسية
           </button>
           <button
             onClick={signOut}

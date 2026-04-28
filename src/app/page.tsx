@@ -11,6 +11,7 @@ import AppLayout, { HomePage } from "@/components/AppLayout";
 import { HashRouterProvider, useRouter } from "@/components/HashRouter";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { NotificationProvider } from "@/components/NotificationSystem";
+import { ThemeProvider } from "@/components/ThemeContext";
 
 function AppContent() {
   const { user, isAdmin, loading } = useAuth();
@@ -76,6 +77,8 @@ function AppContent() {
           return null;
         }
         return <AdminDashboard onClose={() => navigate("home")} />;
+      case "settings":
+        return <UserProfile onClose={() => navigate("home")} initialTab="settings" />;
       default:
         return (
           <HomePage
@@ -98,13 +101,15 @@ function AppContent() {
 export default function Home() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <NotificationProvider>
-          <HashRouterProvider>
-            <AppContent />
-          </HashRouterProvider>
-        </NotificationProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <NotificationProvider>
+            <HashRouterProvider>
+              <AppContent />
+            </HashRouterProvider>
+          </NotificationProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

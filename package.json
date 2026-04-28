@@ -5,17 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "pages:build": "npx @cloudflare/next-on-pages",
-    "pages:dev": "npx wrangler pages dev .vercel/output/static --compatibility-date=2024-12-01 --compatibility-flag=nodejs_compat",
-    "pages:deploy": "npm run pages:build && npx wrangler pages deploy .vercel/output/static",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.0",
     "@tailwindcss/typography": "^0.5.19",
-    "@types/dompurify": "^3.0.5",
-    "@types/react-syntax-highlighter": "^15.5.13",
     "dompurify": "^3.3.3",
     "next": "16.2.3",
     "react": "19.2.4",
@@ -26,9 +21,11 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
     "tailwindcss": "^4",

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase, loadSettings, type SiteSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS } from "@/lib/supabase";
 import { localProfiles, localChatSessions, localChatMessages } from "@/lib/localdb";
 import { useAuth } from "@/components/AuthProvider";
+import { useTheme } from "@/components/ThemeContext";
 import AdBanner from "@/components/AdBanner";
 import MarkdownMessage from "@/components/MarkdownMessage";
 import { UserAvatar } from "@/components/UserProfile";
@@ -463,7 +464,7 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
 
       {/* Sidebar - always visible with LocalDB */}
       {(
-        <aside className={`fixed md:relative z-50 md:z-auto flex flex-col w-72 border-l border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
+        <aside className={`fixed md:relative z-50 md:z-auto flex flex-col w-72 border-l border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"}`}>
           <div className="p-4 border-b border-slate-200 dark:border-slate-800 space-y-3">
             <button onClick={clearChat} className="w-full px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 text-white text-sm font-medium shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all">
               + محادثة جديدة
@@ -548,15 +549,19 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
       <div className="flex flex-col flex-1 min-w-0">
         <AdBanner position="top" />
 
-        {/* Header */}
-        <header className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+        {/* Header - simplified when embedded inside AppLayout */}
+        <header className="flex items-center justify-between px-4 sm:px-6 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" aria-label="قائمة المحادثات">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 text-white font-bold text-sm shadow-lg shadow-orange-500/20">HF</div>
+            {!embedded && (
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-yellow-400 text-white font-bold text-sm shadow-lg shadow-orange-500/20">HF</div>
+            )}
             <div>
-              <h1 className="text-lg font-bold text-slate-900 dark:text-white">{siteSettings.site_name}</h1>
+              {!embedded && (
+                <h1 className="text-lg font-bold text-slate-900 dark:text-white">{siteSettings.site_name}</h1>
+              )}
               <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 <span className="flex items-center gap-1"><span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]}`}></span>{statusText[dbStatus]}</span>
                 <span className="text-slate-300 dark:text-slate-600">|</span>
@@ -565,7 +570,7 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
             </div>
           </div>
           <div className="flex items-center gap-1">
-            {!embedded && <ThemeToggle />}
+            {!embedded && <ThemeToggleCompact />}
             {/* Notification Center */}
             <NotificationCenter />
             {/* FIXED: Model selector dropdown - uses click instead of hover for mobile */}
@@ -778,34 +783,12 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
   );
 }
 
-// Theme Toggle Component - FOUC prevented by inline script in layout.tsx
-function ThemeToggle() {
-  // Initialize dark state from DOM class (set by inline script before paint)
-  const [dark, setDark] = useState(() => {
-    if (typeof window !== "undefined") {
-      return document.documentElement.classList.contains("dark");
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    // Ensure DOM stays in sync with initial state
-    if (dark) {
-      document.documentElement.classList.add("dark");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const toggleTheme = () => {
-    const newDark = !dark;
-    setDark(newDark);
-    if (newDark) { document.documentElement.classList.add("dark"); localStorage.setItem("hf_theme", "dark"); }
-    else { document.documentElement.classList.remove("dark"); localStorage.setItem("hf_theme", "light"); }
-  };
-
+// Theme toggle using centralized ThemeContext (replaces 5+ independent MutationObservers)
+function ThemeToggleCompact() {
+  const { isDark, toggleTheme } = useTheme();
   return (
-    <button onClick={toggleTheme} className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title={dark ? "الوضع الفاتح" : "الوضع المظلم"}>
-      {dark ? (
+    <button onClick={toggleTheme} className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title={isDark ? "الوضع الفاتح" : "الوضع المظلم"} aria-label={isDark ? "الوضع الفاتح" : "الوضع المظلم"}>
+      {isDark ? (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
       ) : (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>

@@ -9,6 +9,17 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL DEFAULT '',
   role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+  display_name TEXT,
+  avatar_url TEXT,
+  bio TEXT,
+  phone TEXT,
+  website TEXT,
+  location TEXT,
+  language_preference TEXT DEFAULT 'ar',
+  theme_preference TEXT DEFAULT 'light',
+  notifications_enabled BOOLEAN DEFAULT true,
+  last_seen TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -49,8 +60,8 @@ INSERT INTO public.site_settings (key, value) VALUES
   ('admob_app_id', ''),
   ('admob_ad_unit_id', ''),
   ('site_name', 'HF Space Chat'),
-  ('hf_space_url', 'https://your-space.hf.space'),
-  ('hf_api_path', '/api/predict')
+  ('hf_space_url', 'https://router.huggingface.co'),
+  ('hf_api_path', '/v1/chat/completions')
 ON CONFLICT (key) DO NOTHING;
 
 -- 6. Enable Row Level Security
@@ -91,9 +102,9 @@ CREATE POLICY "Allow profile insert on signup" ON public.profiles
   FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- 8. RLS Policies for site_settings
--- Anyone authenticated can read settings
-CREATE POLICY "Authenticated users can read settings" ON public.site_settings
-  FOR SELECT USING (auth.role() = 'authenticated');
+-- Anyone (including anon/unauthenticated) can read settings
+CREATE POLICY "Anyone can read settings" ON public.site_settings
+  FOR SELECT USING (true);
 
 -- Only admins can write settings
 CREATE POLICY "Admins can insert settings" ON public.site_settings
@@ -170,7 +181,7 @@ CREATE POLICY "Admins can read all messages" ON public.ai_chat_messages
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, role)
+  INSERT INTO public.profiles (id, email, role, display_name, last_seen)
   VALUES (
     NEW.id,
     NEW.email,
@@ -181,7 +192,9 @@ BEGIN
         AND NEW.email = ANY(string_to_array(value, ','))
       ) THEN 'admin'
       ELSE 'user'
-    END
+    END,
+    COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1)),
+    now()
   );
   RETURN NEW;
 END;

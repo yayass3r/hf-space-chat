@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@supabase/supabase-js";
+import DOMPurify from "dompurify";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ucmpclgctjeyoimtmqir.supabase.co";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjbXBjbGdjdGpleW9pbXRtcWlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5MjI5NjYsImV4cCI6MjA5MTQ5ODk2Nn0.-243x1_Hqnml5smR3aqSUFS8uuglw3f1wSlfqZNcp-k";
@@ -153,9 +154,9 @@ export async function loadSettings(): Promise<SiteSettings> {
               hasSupabaseData = true;
             }
           });
-          // If Supabase has data, clear old localStorage cache to prevent stale overrides
+          // If Supabase has data, UPDATE localStorage cache (don't remove - preserves offline fallback)
           if (hasSupabaseData && typeof window !== "undefined") {
-            try { localStorage.removeItem(SETTINGS_KEY); } catch {}
+            try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(defaults)); } catch {}
           }
         }
       }
@@ -245,10 +246,12 @@ export async function saveSettings(settings: SiteSettings): Promise<boolean> {
   return true;
 }
 
-// Sanitize text to prevent XSS
+// Sanitize text to prevent XSS using DOMPurify
 export function sanitizeText(text: string): string {
-  return text
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/on\w+="[^"]*"/gi, "")
-    .replace(/on\w+='[^']*'/gi, "");
+  if (typeof window === "undefined") return text;
+  // Use DOMPurify to strip all HTML tags, allowing only safe text content
+  return DOMPurify.sanitize(text, {
+    ALLOWED_TAGS: [], // Strip all HTML tags - only allow plain text
+    ALLOWED_ATTR: [],
+  });
 }

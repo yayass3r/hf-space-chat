@@ -19,6 +19,7 @@ import {
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useAuth } from "./AuthProvider";
+import { useTheme } from "./ThemeContext";
 import DeploymentHub from "./DeploymentHub";
 
 // ==================== FILE ICON HELPER ====================
@@ -153,10 +154,12 @@ function PreviewPanel({
   files,
   isDark,
   viewMode,
+  onViewModeChange,
 }: {
   files: BuilderFile[];
   isDark: boolean;
   viewMode: "desktop" | "tablet" | "mobile";
+  onViewModeChange: (mode: "desktop" | "tablet" | "mobile") => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [manualRefresh, setManualRefresh] = useState(0);
@@ -179,7 +182,7 @@ function PreviewPanel({
           {(["desktop", "tablet", "mobile"] as const).map((mode) => (
             <button
               key={mode}
-              onClick={() => {/* viewMode set by parent */}}
+              onClick={() => onViewModeChange(mode)}
               className={`p-1.5 rounded text-xs ${viewMode === mode ? "bg-orange-500/20 text-orange-500" : isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-700"}`}
               title={mode}
             >
@@ -392,13 +395,11 @@ function AIChatPanel({
 // ==================== MAIN BUILDER COMPONENT ====================
 export default function FullStackBuilder({ onBack }: { onBack: () => void }) {
   useAuth(); // Get auth context for future use
-  const [isDark, setIsDark] = useState(() =>
-    typeof window !== "undefined" ? document.documentElement.classList.contains("dark") : false
-  );
+  const { isDark, toggleTheme } = useTheme();
   const [project, setProject] = useState<BuilderProject | null>(null);
   const [activeTab, setActiveTab] = useState<"editor" | "preview" | "ai" | "deploy">("editor");
   const [showTemplates, setShowTemplates] = useState(true);
-  const [viewMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [viewMode, setViewMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [savedProjects, setSavedProjects] = useState<BuilderProject[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
   const [selectedModel] = useState("Qwen/Qwen3-14B");
@@ -423,15 +424,6 @@ export default function FullStackBuilder({ onBack }: { onBack: () => void }) {
         startTransition(() => { setSavedProjects(JSON.parse(stored)); });
       }
     } catch {}
-  }, []);
-
-  // Sync dark mode
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
   }, []);
 
   // Save project to localStorage
@@ -597,18 +589,6 @@ export default function FullStackBuilder({ onBack }: { onBack: () => void }) {
   };
 
   const activeFile = project?.files.find((f) => f.id === project.activeFileId) || null;
-
-  const toggleTheme = () => {
-    const newDark = !isDark;
-    setIsDark(newDark);
-    if (newDark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("hf_theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("hf_theme", "light");
-    }
-  };
 
   // ==================== TEMPLATE GALLERY ====================
   if (showTemplates && !project) {
@@ -957,6 +937,7 @@ export default function FullStackBuilder({ onBack }: { onBack: () => void }) {
                 files={project?.files || []}
                 isDark={isDark}
                 viewMode={viewMode}
+                onViewModeChange={setViewMode}
               />
             ) : (
               <AIChatPanel

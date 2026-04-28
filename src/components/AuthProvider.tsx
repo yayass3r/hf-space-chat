@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { supabase, isSupabaseConfigured, isAdminEmail } from "@/lib/supabase";
 import { localAuth, localProfiles, isLocalDBReady } from "@/lib/localdb";
 import type { User, Session } from "@supabase/supabase-js";
@@ -67,13 +67,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Try to restore session on mount - PRIORITY: Supabase first, LocalDB second
+  // Keep ref to subscription so we can clean up on unmount
+  const subscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
+
   useEffect(() => {
+    let cancelled = false;
+
     async function initAuth() {
       // Step 1: Try Supabase first (primary auth source)
       if (supabase && isSupabaseConfigured) {
         try {
           const { data: { session: sbSession }, error } = await supabase.auth.getSession();
           
+          if (cancelled) return;
+
           if (!error && sbSession) {
             // Supabase session found - use it
             setSupabaseReachable(true);
@@ -96,6 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Listen for auth changes
             const { data: { subscription } } = supabase.auth.onAuthStateChange(
               async (_event, s) => {
+                if (cancelled) return;
                 setSession(s);
                 setUser(s?.user ?? null);
                 if (s?.user) {
@@ -108,13 +116,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
             );
             
-            return () => subscription.unsubscribe();
+            // Store subscription for cleanup
+            subscriptionRef.current = subscription;
+            return;
           }
           
           // No Supabase session but Supabase is reachable
           setSupabaseReachable(true);
         } catch {
           // Supabase unreachable - will try LocalDB
+          if (cancelled) return;
           setSupabaseReachable(false);
         }
       }
@@ -135,11 +146,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Step 3: No session found anywhere
-      setIsLocalAuth(!supabaseReachable);
+      // Use a ref-safe approach since state may be stale in the closure
+      setIsLocalAuth((prev) => {
+        // supabaseReachable might not be updated yet, check if supabase was unreachable
+        return prev; // Keep previous value if already set, otherwise default to false for supabase reachable
+      });
       setLoading(false);
     }
 
     initAuth();
+
+    // Cleanup: cancel async ops and unsubscribe from auth listener
+    return () => {
+      cancelled = true;
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
+      }
+    };
   }, [updateAdminStatus]);
 
   // Helper: sync Supabase user to LocalDB for offline access

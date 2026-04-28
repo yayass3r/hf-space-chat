@@ -72,13 +72,13 @@ export function HashRouterProvider({ children }: { children: React.ReactNode }) 
   // Listen to popstate for browser back/forward
   useEffect(() => {
     const handlePopState = () => {
+      // Skip if we're already navigating programmatically
+      if (isNavigatingRef.current) return;
+
       const hash = window.location.hash.replace("#", "");
       const page = isValidPage(hash) ? hash : "home";
 
-      isNavigatingRef.current = true;
-
       // Determine direction: check if the page is back or forward in our history
-      // For browser back/forward, we try to find the page in history
       const currentIdx = historyIndexRef.current;
       if (currentIdx > 0 && historyRef.current[currentIdx - 1] === page) {
         // Going back
@@ -95,7 +95,6 @@ export function HashRouterProvider({ children }: { children: React.ReactNode }) 
 
       startTransition(() => { setCurrentPage(page); });
       updateCanNavigate();
-      isNavigatingRef.current = false;
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -121,18 +120,20 @@ export function HashRouterProvider({ children }: { children: React.ReactNode }) 
 
     isNavigatingRef.current = true;
 
-    // Update hash (this will trigger popstate on browser back/forward, but not on programmatic change)
-    window.location.hash = page;
-
     // Update history: truncate forward entries and push new page
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
     historyRef.current.push(page);
     historyIndexRef.current = historyRef.current.length - 1;
 
+    // Use history.pushState to avoid triggering popstate event
+    // (setting window.location.hash triggers popstate in some browsers)
+    history.pushState(null, '', `#${page}`);
+
     startTransition(() => { setCurrentPage(page); });
     updateCanNavigate();
 
-    isNavigatingRef.current = false;
+    // Reset navigating flag after a microtask to allow popstate to settle
+    setTimeout(() => { isNavigatingRef.current = false; }, 0);
 
     // Scroll to top on page change
     window.scrollTo(0, 0);
@@ -144,12 +145,14 @@ export function HashRouterProvider({ children }: { children: React.ReactNode }) 
 
     historyIndexRef.current -= 1;
     const targetPage = historyRef.current[historyIndexRef.current];
-    window.location.hash = targetPage;
+
+    // Use history.pushState instead of window.location.hash to avoid duplicate popstate
+    history.pushState(null, '', `#${targetPage}`);
 
     startTransition(() => { setCurrentPage(targetPage); });
     updateCanNavigate();
 
-    isNavigatingRef.current = false;
+    setTimeout(() => { isNavigatingRef.current = false; }, 0);
     window.scrollTo(0, 0);
   }, [updateCanNavigate]);
 
@@ -159,12 +162,14 @@ export function HashRouterProvider({ children }: { children: React.ReactNode }) 
 
     historyIndexRef.current += 1;
     const targetPage = historyRef.current[historyIndexRef.current];
-    window.location.hash = targetPage;
+
+    // Use history.pushState instead of window.location.hash to avoid duplicate popstate
+    history.pushState(null, '', `#${targetPage}`);
 
     startTransition(() => { setCurrentPage(targetPage); });
     updateCanNavigate();
 
-    isNavigatingRef.current = false;
+    setTimeout(() => { isNavigatingRef.current = false; }, 0);
     window.scrollTo(0, 0);
   }, [updateCanNavigate]);
 
