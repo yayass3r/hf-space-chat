@@ -22,8 +22,8 @@ jobs:
           echo "NEXT_PUBLIC_SUPABASE_URL=https://ucmpclgctjeyoimtmqir.supabase.co" >> .env
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjbXBjbGdjdGpleW9pbXRtcWlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5MjI5NjYsImV4cCI6MjA5MTQ5ODk2Nn0.-243x1_Hqnml5smR3aqSUFS8uuglw3f1wSlfqZNcp-k" >> .env
           echo "NEXT_PUBLIC_ADMIN_EMAILS=yayass3r@gmail.com" >> .env
-          echo "NEXT_PUBLIC_APPWRITE_ENDPOINT=https://cloud.appwrite.io/v1" >> .env
-          echo "NEXT_PUBLIC_APPWRITE_PROJECT_ID=6810c7e800245c1aa5e0" >> .env
+          echo "NEXT_PUBLIC_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1" >> .env
+          echo "NEXT_PUBLIC_APPWRITE_PROJECT_ID=69f0d73900204f7b5dfc" >> .env
 
       - name: Build static site
         run: npm run build

@@ -78,12 +78,16 @@ export default function MarkdownMessage({ content }: MarkdownMessageProps) {
         components={{
           code({ className, children, node, ref, ...props }) {
             const match = /language-(\w+)/.exec(className || "");
-            // FIXED: Properly detect inline code - no language class AND not a block code element
-            const isInline = !match;
+            // FIXED: Properly detect inline code vs block code
+            // Block code is wrapped in <pre> by react-markdown, inline code is not
+            // Check if parent element is <pre> to determine if this is a code block
+            const isBlockCode = node?.position?.start.line !== node?.position?.end.line || 
+                                String(children).includes('\n');
+            const isInline = !match && !isBlockCode;
             
             if (isInline) {
               return (
-                <code className={className}>
+                <code className={className} {...props}>
                   {children}
                 </code>
               );

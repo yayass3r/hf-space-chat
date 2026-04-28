@@ -141,37 +141,17 @@ export function HashRouterProvider({ children }: { children: React.ReactNode }) 
 
   const goBack = useCallback(() => {
     if (historyIndexRef.current <= 0) return;
-    isNavigatingRef.current = true;
-
-    historyIndexRef.current -= 1;
-    const targetPage = historyRef.current[historyIndexRef.current];
-
-    // Use history.pushState instead of window.location.hash to avoid duplicate popstate
-    history.pushState(null, '', `#${targetPage}`);
-
-    startTransition(() => { setCurrentPage(targetPage); });
-    updateCanNavigate();
-
-    setTimeout(() => { isNavigatingRef.current = false; }, 0);
-    window.scrollTo(0, 0);
-  }, [updateCanNavigate]);
+    // Use history.back() to properly navigate browser history
+    // The popstate handler will update the state
+    history.back();
+  }, []);
 
   const goForward = useCallback(() => {
     if (historyIndexRef.current >= historyRef.current.length - 1) return;
-    isNavigatingRef.current = true;
-
-    historyIndexRef.current += 1;
-    const targetPage = historyRef.current[historyIndexRef.current];
-
-    // Use history.pushState instead of window.location.hash to avoid duplicate popstate
-    history.pushState(null, '', `#${targetPage}`);
-
-    startTransition(() => { setCurrentPage(targetPage); });
-    updateCanNavigate();
-
-    setTimeout(() => { isNavigatingRef.current = false; }, 0);
-    window.scrollTo(0, 0);
-  }, [updateCanNavigate]);
+    // Use history.forward() to properly navigate browser history
+    // The popstate handler will update the state
+    history.forward();
+  }, []);
 
   return (
     <RouterContext.Provider value={{ currentPage, navigate, goBack, goForward, canGoBack, canGoForward }}>

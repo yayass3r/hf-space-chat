@@ -146,12 +146,13 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
   // Build conversation history for the API
   const buildChatMessages = (currentMessages: Message[], newUserMsg: string) => {
     const history: { role: "system" | "user" | "assistant"; content: string }[] = [];
-    // NEW: Add custom system prompt if set
+    // Add custom system prompt if set
     if (systemPrompt.trim()) {
       history.push({ role: "system", content: systemPrompt.trim() });
     }
     currentMessages
       .filter((m) => !m.content.startsWith("\u274C")) // Remove error messages
+      .filter((m) => m.role === "user" || m.role === "assistant") // Only user/assistant roles allowed in API
       .slice(-20) // Last 20 messages for context window
       .forEach((m) => history.push({ role: m.role as "user" | "assistant", content: m.content }));
     history.push({ role: "user", content: newUserMsg });
@@ -274,7 +275,13 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
 
     setError(null);
     const userMessage: Message = { role: "user", content: trimmed, id: Date.now().toString() };
-    setMessages((prev) => [...prev, userMessage]);
+    
+    // Use functional state updates to avoid stale closure issues
+    let currentMessagesSnapshot: Message[] = [];
+    setMessages((prev) => {
+      currentMessagesSnapshot = [...prev, userMessage];
+      return currentMessagesSnapshot;
+    });
     setInput("");
     setIsLoading(true);
 
@@ -294,14 +301,10 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
     // Add empty assistant message for streaming
     setMessages((prev) => [...prev, { role: "assistant", content: "", id: assistantId }]);
 
-    // Use functional state update to avoid stale closure
-    const chatMessages = buildChatMessages(
-      // Get the current messages including the just-added user message
-      [...messages, userMessage],
-      trimmed
-    );
+    // Build chat messages using the snapshot (no stale closure)
+    const chatMessages = buildChatMessages(currentMessagesSnapshot, trimmed);
     // Remove the duplicate last user message since buildChatMessages adds it
-    chatMessages.pop(); // Remove the duplicated user message added by buildChatMessages
+    chatMessages.pop();
 
     await fetchStreamingResponse(
       chatMessages,
@@ -333,7 +336,7 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
     );
   };
 
-  // FIXED: retryLastMessage now uses streaming
+  // FIXED: retryLastMessage now uses streaming - does NOT re-insert user message to avoid duplicates
   const retryLastMessage = async () => {
     const lastUserIdx = [...messages].map((m, i) => m.role === "user" ? i : -1).filter(i => i >= 0).pop();
     if (lastUserIdx === undefined) return;
@@ -341,7 +344,6 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
 
     // Remove messages after and including the last user message
     const priorMessages = messages.slice(0, lastUserIdx);
-    setMessages(priorMessages);
     setError(null);
     setIsLoading(true);
 
@@ -349,9 +351,9 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
     abortControllerRef.current = controller;
     const assistantId = (Date.now() + 1).toString();
 
-    // Re-add the user message and empty assistant
+    // Re-add the user message and empty assistant using functional update
     setMessages((prev) => [
-      ...prev,
+      ...priorMessages,
       { role: "user", content: lastUserMsg.content, id: Date.now().toString() },
       { role: "assistant", content: "", id: assistantId },
     ]);
@@ -368,10 +370,8 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
       },
       (content) => {
         if (currentSessionId && content) {
-          unifiedChatMessages.insertMany([
-            { session_id: currentSessionId, role: "user", content: lastUserMsg.content },
-            { session_id: currentSessionId, role: "assistant", content },
-          ], authSource);
+          // Only insert the assistant response - user message was already saved in original sendMessage
+          unifiedChatMessages.insert(currentSessionId, "assistant", content, authSource);
         }
         setIsLoading(false);
         abortControllerRef.current = null;

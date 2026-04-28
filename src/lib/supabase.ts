@@ -139,6 +139,7 @@ const SETTINGS_KEY = "hf_site_settings";
 
 export async function loadSettings(): Promise<SiteSettings> {
   const defaults = { ...DEFAULT_SETTINGS };
+  let hasSupabaseData = false;
 
   // 1. Try loading from Supabase first (source of truth)
   if (supabase) {
@@ -147,7 +148,6 @@ export async function loadSettings(): Promise<SiteSettings> {
       if (tableExists) {
         const { data } = await supabase.from("site_settings").select("key, value");
         if (data && data.length > 0) {
-          let hasSupabaseData = false;
           data.forEach((item: { key: string; value: string }) => {
             if (item.key in defaults && item.value) {
               (defaults as Record<string, string>)[item.key] = item.value;
@@ -163,8 +163,8 @@ export async function loadSettings(): Promise<SiteSettings> {
     } catch {}
   }
 
-  // 2. Only use localStorage as fallback if Supabase had no data
-  if (typeof window !== "undefined") {
+  // 2. Only use localStorage as fallback if Supabase had NO data (offline or unconfigured)
+  if (!hasSupabaseData && typeof window !== "undefined") {
     try {
       const stored = localStorage.getItem(SETTINGS_KEY);
       if (stored) {

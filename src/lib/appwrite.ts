@@ -61,8 +61,8 @@ export const getAppwrite = initAppwrite;
 export function getIsAppwriteConfigured(): boolean {
   return !!getAppwrite();
 }
-// Static export for backwards compat (evaluated lazily on client)
-export const isAppwriteConfigured = typeof window !== "undefined" ? !!getAppwrite() : false;
+// Note: isAppwriteConfigured is removed to avoid stale static value.
+// Always use getIsAppwriteConfigured() instead.
 
 // ==================== Connection Check ====================
 
