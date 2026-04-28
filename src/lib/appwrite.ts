@@ -4,8 +4,8 @@ import { Client, Account, Databases, Storage, ID, Query, OAuthProvider } from "a
 
 // ==================== Appwrite Configuration ====================
 
-const APPWRITE_ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
-const APPWRITE_PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "6810c7e800245c1aa5e0";
+const APPWRITE_ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1";
+const APPWRITE_PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "69f0d73900204f7b5dfc";
 // Note: API key should NOT be exposed client-side. Use server-side endpoints for admin operations.
 // For client-side SDK, only project ID is needed.
 
