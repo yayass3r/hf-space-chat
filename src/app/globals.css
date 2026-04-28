@@ -738,3 +738,44 @@ iframe[title="Preview"] {
     min-width: 44px;
   }
 }
+
+/* ==================== Bottom Navigation ==================== */
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Bottom nav active indicator animation */
+@keyframes bottomNavSlide {
+  from { width: 0; opacity: 0; }
+  to { width: 2rem; opacity: 1; }
+}
+
+/* Add bottom padding for content when bottom nav is visible */
+@media (max-width: 1023px) {
+  .h-full {
+    min-height: calc(100vh - 4rem - 3.5rem - env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ==================== Appwrite Integration Badge ==================== */
+
+.appwrite-badge {
+  background: linear-gradient(135deg, #f02e65, #fd3567, #ff6b6b);
+  color: white;
+  font-size: 0.625rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.375rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}
+
+.supabase-badge {
+  background: linear-gradient(135deg, #3ecf8e, #1c8656);
+  color: white;
+  font-size: 0.625rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.375rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}

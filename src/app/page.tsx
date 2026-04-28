@@ -89,6 +89,9 @@ function AppContent() {
     }
   };
 
+  // Fullscreen pages render without layout wrapper (but still in AppLayout for sidebar/bottom nav)
+  const isFullscreenPage = currentPage === "builder" || currentPage === "profile" || currentPage === "admin" || currentPage === "settings";
+
   return (
     <AppLayout>
       <div key={currentPage} className="animate-page-in h-full">

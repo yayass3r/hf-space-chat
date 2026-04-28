@@ -6,6 +6,7 @@ import { useRouter, type AppPage } from "./HashRouter";
 import { useTheme } from "./ThemeContext";
 import { supabase, checkSupabaseConnection, loadSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS, type SiteSettings } from "@/lib/supabase";
 import { localProfiles } from "@/lib/localdb";
+import { checkAppwriteConnection, getIsAppwriteConfigured } from "@/lib/appwrite";
 import type { UserProfile } from "@/lib/types";
 import { UserAvatar } from "./UserProfile";
 
@@ -102,6 +103,9 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+// Bottom nav items (subset for mobile)
+const BOTTOM_NAV_ITEMS: NavItem[] = NAV_ITEMS.filter(item => !item.adminOnly && item.id !== "settings");
+
 // ==================== THEME TOGGLE ====================
 function ThemeToggle({ compact }: { compact?: boolean }) {
   const { isDark, toggleTheme } = useTheme();
@@ -127,6 +131,45 @@ function ThemeToggle({ compact }: { compact?: boolean }) {
         </svg>
       )}
     </button>
+  );
+}
+
+// ==================== CONNECTION STATUS BADGE ====================
+function ConnectionBadge({ dbStatus, appwriteStatus }: { dbStatus: "checking" | "connected" | "disconnected"; appwriteStatus: boolean | null }) {
+  const { isDark } = useTheme();
+  return (
+    <div className="flex items-center gap-2">
+      {/* Supabase Status */}
+      <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium ${
+        dbStatus === "connected"
+          ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
+          : dbStatus === "disconnected"
+            ? "bg-red-50 text-red-500 dark:bg-red-900/20 dark:text-red-400"
+            : "bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400"
+      }`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${
+          dbStatus === "connected" ? "bg-emerald-400 animate-pulse" :
+          dbStatus === "disconnected" ? "bg-red-400" : "bg-yellow-400"
+        }`}></span>
+        <span className="hidden sm:inline">Supabase</span>
+      </div>
+      {/* Appwrite Status */}
+      {getIsAppwriteConfigured() && (
+        <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium ${
+          appwriteStatus === true
+            ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
+            : appwriteStatus === false
+              ? "bg-red-50 text-red-500 dark:bg-red-900/20 dark:text-red-400"
+              : "bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400"
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${
+            appwriteStatus === true ? "bg-blue-400 animate-pulse" :
+            appwriteStatus === false ? "bg-red-400" : "bg-yellow-400"
+          }`}></span>
+          <span className="hidden sm:inline">Appwrite</span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -175,7 +218,7 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
 
   return (
     <div className="h-full overflow-y-auto" dir="rtl">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6 pb-24 lg:pb-6">
         {/* Welcome Banner */}
         <div className="rounded-2xl p-6 sm:p-8 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-400 relative overflow-hidden banner-shimmer animate-fade-in-up">
           <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
@@ -306,20 +349,20 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
 
 // ==================== MAIN APP LAYOUT ====================
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, signOut, authSource, appwriteConnected } = useAuth();
   const { currentPage, navigate, goBack, canGoBack } = useRouter();
   const { isDark, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "disconnected">("checking");
+  const [appwriteStatus, setAppwriteStatus] = useState<boolean | null>(null);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>({ ...DEFAULT_SETTINGS });
 
-  // Load user profile - try Supabase first, then LocalDB fallback
+  // Load user profile
   useEffect(() => {
     if (!user) return;
     async function loadProfile() {
       try {
-        // Try Supabase first
         if (supabase) {
           const { data } = await supabase.from("profiles").select("*").eq("id", user!.id).single();
           if (data) {
@@ -328,7 +371,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           }
         }
       } catch {}
-      // Fallback to LocalDB
       try {
         const localProfile = localProfiles.getById(user!.id);
         if (localProfile) {
@@ -339,11 +381,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     loadProfile();
   }, [user]);
 
-  // Check DB connection
+  // Check DB connections
   useEffect(() => {
     async function check() {
       const connected = await checkSupabaseConnection();
       startTransition(() => { setDbStatus(connected ? "connected" : "disconnected"); });
+
+      // Also check Appwrite
+      if (getIsAppwriteConfigured()) {
+        const awConnected = await checkAppwriteConnection();
+        startTransition(() => { setAppwriteStatus(awConnected); });
+      }
     }
     check();
   }, []);
@@ -357,11 +405,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     load();
   }, []);
 
-  // Auto-close sidebar when navigating to builder or profile
+  // Auto-close sidebar when navigating
   useEffect(() => {
-    if (currentPage === "builder" || currentPage === "profile") {
-      setSidebarOpen(false);
-    }
+    setSidebarOpen(false);
   }, [currentPage]);
 
   const handleNavigate = useCallback((page: AppPage) => {
@@ -369,23 +415,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setSidebarOpen(false);
   }, [navigate]);
 
-  // Get page title
   const currentPageItem = NAV_ITEMS.find(item => item.id === currentPage);
   const pageTitle = currentPageItem?.label || "الرئيسية";
-
-  // Filter nav items based on admin status
   const visibleNavItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
 
   const statusColor = { checking: "bg-yellow-400", connected: "bg-emerald-400", disconnected: "bg-red-400" };
   const statusText = { checking: "جاري الفحص...", connected: "متصل", disconnected: "غير متصل" };
 
-  // Check if current page is fullscreen (builder, profile, admin, settings)
-  const isFullscreenPage = currentPage === "builder" || currentPage === "profile" || currentPage === "admin" || currentPage === "settings";
-
-  // For fullscreen pages, render without layout
-  if (isFullscreenPage) {
-    return <>{children}</>;
-  }
+  // Auth source badge
+  const authSourceLabel = {
+    supabase: "Supabase",
+    appwrite: "Appwrite",
+    local: "محلي",
+  };
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 transition-colors duration-300" dir="rtl">
@@ -417,9 +459,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
               <div>
                 <h1 className="text-sm font-bold text-slate-900 dark:text-white">{siteSettings.site_name}</h1>
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                  <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]} ${dbStatus === "connected" ? "animate-pulse" : ""}`}></span>
-                  {statusText[dbStatus]}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]} ${dbStatus === "connected" ? "animate-pulse" : ""}`}></span>
+                    {statusText[dbStatus]}
+                  </div>
+                  {getIsAppwriteConfigured() && appwriteStatus !== null && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className={`w-1.5 h-1.5 rounded-full ${appwriteStatus ? "bg-blue-400 animate-pulse" : "bg-red-400"}`}></span>
+                      {appwriteStatus ? "Appwrite" : "غير متصل"}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -444,11 +494,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </p>
                 <p className="text-[11px] text-slate-400 truncate" dir="ltr">{user.email}</p>
               </div>
-              <span className={`text-[10px] px-2 py-1 rounded-lg font-bold ${
-                isAdmin ? "bg-orange-500/15 text-orange-600 dark:text-orange-400" : "bg-slate-200/80 dark:bg-slate-700/80 text-slate-500 dark:text-slate-400"
-              }`}>
-                {isAdmin ? "مسؤول" : "مستخدم"}
-              </span>
+              <div className="flex flex-col items-end gap-1">
+                <span className={`text-[10px] px-2 py-1 rounded-lg font-bold ${
+                  isAdmin ? "bg-orange-500/15 text-orange-600 dark:text-orange-400" : "bg-slate-200/80 dark:bg-slate-700/80 text-slate-500 dark:text-slate-400"
+                }`}>
+                  {isAdmin ? "مسؤول" : "مستخدم"}
+                </span>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-medium ${
+                  authSource === "supabase" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                  authSource === "appwrite" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                  "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                }`}>
+                  {authSourceLabel[authSource]}
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -494,6 +553,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Sidebar Footer */}
         <div className={`p-3 space-y-2 border-t ${isDark ? "border-slate-800/60" : "border-slate-100"}`}>
+          {/* Connection Info */}
+          <div className={`flex items-center justify-between px-2 py-1.5 rounded-lg ${isDark ? "bg-slate-800/40" : "bg-slate-50"} text-[10px]`}>
+            <span className={`${isDark ? "text-slate-400" : "text-slate-500"}`}>الاتصال</span>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]}`}></span>
+              <span className={isDark ? "text-slate-300" : "text-slate-600"}>Supabase</span>
+              {getIsAppwriteConfigured() && (
+                <>
+                  <span className={isDark ? "text-slate-600" : "text-slate-300"}>|</span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${appwriteStatus ? "bg-blue-400" : "bg-red-400"}`}></span>
+                  <span className={isDark ? "text-slate-300" : "text-slate-600"}>Appwrite</span>
+                </>
+              )}
+            </div>
+          </div>
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-1">
               <ThemeToggle compact />
@@ -524,7 +598,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Minimal Header */}
+        {/* Top Header */}
         <header className={`flex items-center justify-between px-4 sm:px-6 h-14 border-b transition-colors ${
           isDark ? "border-slate-800/60 bg-slate-950/80" : "border-slate-200/80 bg-white/80"
         } backdrop-blur-xl`} role="banner">
@@ -551,7 +625,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               )}
             </button>
 
-            {/* Back button when available */}
+            {/* Back button */}
             {canGoBack && (
               <button
                 onClick={goBack}
@@ -584,18 +658,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Right side */}
+          {/* Right side - Connection badges */}
           <div className="flex items-center gap-1.5">
-            <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium ${
-              dbStatus === "connected"
-                ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
-                : dbStatus === "disconnected"
-                  ? "bg-red-50 text-red-500 dark:bg-red-900/20 dark:text-red-400"
-                  : "bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400"
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${statusColor[dbStatus]} ${dbStatus === "connected" ? "animate-pulse" : ""}`}></span>
-              {statusText[dbStatus]}
-            </div>
+            <ConnectionBadge dbStatus={dbStatus} appwriteStatus={appwriteStatus} />
             <ThemeToggle compact />
           </div>
         </header>
@@ -605,6 +670,49 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* Bottom Navigation (Mobile Only) */}
+      <nav
+        className={`fixed bottom-0 left-0 right-0 z-30 lg:hidden ${
+          isDark
+            ? "bg-slate-900/95 border-slate-800/60"
+            : "bg-white/95 border-slate-200/80"
+        } border-t backdrop-blur-xl safe-area-bottom`}
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        aria-label="التنقل السريع"
+      >
+        <div className="flex items-center justify-around h-16">
+          {BOTTOM_NAV_ITEMS.map((item) => {
+            const isActive = currentPage === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleNavigate(item.id)}
+                className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200 min-w-0 flex-1 touch-target ${
+                  isActive
+                    ? isDark
+                      ? "text-orange-400"
+                      : "text-orange-600"
+                    : isDark
+                      ? "text-slate-500 hover:text-slate-300"
+                      : "text-slate-400 hover:text-slate-600"
+                }`}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <span className={`transition-transform duration-200 ${isActive ? "scale-110" : ""}`}>
+                  {item.icon}
+                </span>
+                <span className={`text-[10px] font-medium leading-tight ${isActive ? "font-bold" : ""}`}>
+                  {item.label}
+                </span>
+                {isActive && (
+                  <span className="absolute top-0 w-8 h-0.5 rounded-full bg-gradient-to-r from-orange-500 to-yellow-400" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
