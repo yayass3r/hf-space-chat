@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { supabase, loadSettings, type SiteSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS } from "@/lib/supabase";
+import { loadSettings, type SiteSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS } from "@/lib/supabase";
 import { localProfiles, localChatSessions, localChatMessages } from "@/lib/localdb";
+import { unifiedChatSessions, unifiedChatMessages, unifiedProfiles, ensureLocalProfileForAppwriteUser, type UnifiedChatSession, type UnifiedChatMessage } from "@/lib/datasource";
 import { useAuth } from "@/components/AuthProvider";
 import { useTheme } from "@/components/ThemeContext";
 import AdBanner from "@/components/AdBanner";
@@ -12,14 +13,14 @@ import { NotificationCenter } from "@/components/NotificationSystem";
 import type { Message, ChatSession, UserProfile } from "@/lib/types";
 
 export default function ChatApp({ onAdminClick, onProfileClick, embedded = false }: { onAdminClick: () => void; onProfileClick: () => void; onDeployClick?: () => void; embedded?: boolean }) {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, signOut, authSource } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "disconnected">("checking");
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessions, setSessions] = useState<UnifiedChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>({ ...DEFAULT_SETTINGS });
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -45,12 +46,19 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
   const modelMenuRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<unknown>(null);
 
-  // Load user profile for sidebar avatar
+  // Load user profile for sidebar avatar (uses unified data source)
   useEffect(() => {
     if (!user) return;
-    const profile = localProfiles.getById(user.id);
-    if (profile) setUserProfile(profile as unknown as UserProfile);
-  }, [user]);
+    // Ensure Appwrite users have a local profile too
+    if (authSource === "appwrite") {
+      ensureLocalProfileForAppwriteUser(user.id, user.email || "", user.user_metadata?.full_name as string || "");
+    }
+    async function loadProfile() {
+      const profile = await unifiedProfiles.getById(user!.id, authSource);
+      if (profile) setUserProfile(profile);
+    }
+    loadProfile();
+  }, [user, authSource]);
 
   // Close model menu on outside click
   useEffect(() => {
@@ -101,22 +109,26 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
     } catch {}
   }, []);
 
-  // Load sessions from LocalDB (always available)
+  // Load sessions from unified data source (Appwrite or LocalDB)
   useEffect(() => {
-    setDbStatus("connected"); // LocalDB is always connected
+    setDbStatus("connected"); // LocalDB is always available as fallback
     if (user) {
-      const localSessions = localChatSessions.getByUserId(user.id);
-      setSessions(localSessions as unknown as ChatSession[]);
+      unifiedChatSessions.getByUserId(user.id, authSource).then(sessions => {
+        setSessions(sessions);
+      });
     }
-  }, [user]);
+  }, [user, authSource]);
 
   async function createNewSession(firstMessage: string) {
     if (!user) return null;
     const title = firstMessage.slice(0, 50) + (firstMessage.length > 50 ? "..." : "");
-    const session = localChatSessions.create(user.id, title);
-    setCurrentSessionId(session.id);
-    setSessions((prev) => [session as unknown as ChatSession, ...prev]);
-    return session.id;
+    const session = await unifiedChatSessions.create(user.id, title, authSource);
+    if (session) {
+      setCurrentSessionId(session.id);
+      setSessions((prev) => [session, ...prev]);
+      return session.id;
+    }
+    return null;
   }
 
   useEffect(() => {
@@ -272,7 +284,7 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
       sessionId = await createNewSession(trimmed);
     }
     if (sessionId) {
-      localChatMessages.insert(sessionId, "user", trimmed);
+      unifiedChatMessages.insert(sessionId, "user", trimmed, authSource);
     }
 
     const controller = new AbortController();
@@ -282,7 +294,14 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
     // Add empty assistant message for streaming
     setMessages((prev) => [...prev, { role: "assistant", content: "", id: assistantId }]);
 
-    const chatMessages = buildChatMessages(messages, trimmed);
+    // Use functional state update to avoid stale closure
+    const chatMessages = buildChatMessages(
+      // Get the current messages including the just-added user message
+      [...messages, userMessage],
+      trimmed
+    );
+    // Remove the duplicate last user message since buildChatMessages adds it
+    chatMessages.pop(); // Remove the duplicated user message added by buildChatMessages
 
     await fetchStreamingResponse(
       chatMessages,
@@ -293,10 +312,10 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
           prev.map((m) => m.id === assistantId ? { ...m, content } : m)
         );
       },
-      // onComplete - save to LocalDB
+      // onComplete - save to data source
       (content) => {
         if (sessionId && content) {
-          localChatMessages.insert(sessionId, "assistant", content);
+          unifiedChatMessages.insert(sessionId, "assistant", content, authSource);
         }
         setIsLoading(false);
         abortControllerRef.current = null;
@@ -349,10 +368,10 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
       },
       (content) => {
         if (currentSessionId && content) {
-          localChatMessages.insertMany([
-            { project_id: currentSessionId, role: "user", content: lastUserMsg.content },
-            { project_id: currentSessionId, role: "assistant", content },
-          ]);
+          unifiedChatMessages.insertMany([
+            { session_id: currentSessionId, role: "user", content: lastUserMsg.content },
+            { session_id: currentSessionId, role: "assistant", content },
+          ], authSource);
         }
         setIsLoading(false);
         abortControllerRef.current = null;
@@ -383,7 +402,13 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (recognition.onresult as (e: any) => void) = (event: any) => {
         const transcript = event.results?.[0]?.[0]?.transcript || "";
-        if (transcript) setInput((prev) => prev + transcript);
+        // Use isFinal to avoid duplication - only replace input when interim, append when final
+        if (event.results?.[0]?.isFinal) {
+          setInput((prev) => prev + transcript);
+        } else {
+          // For interim results, we could show them but don't add to input yet
+          // to avoid duplication when final result arrives
+        }
       };
       (recognition.onend as () => void) = () => setIsListening(false);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -417,9 +442,9 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
   const clearChat = () => { setMessages([]); setError(null); setCurrentSessionId(null); };
 
   const loadSession = async (sessionId: string) => {
-    const msgs = localChatMessages.getBySessionId(sessionId);
+    const msgs = await unifiedChatMessages.getBySessionId(sessionId, authSource);
     if (msgs.length > 0) {
-      setMessages(msgs.map((m, i) => ({ role: m.role as "user" | "assistant", content: m.content, id: `${sessionId}-${i}` })));
+      setMessages(msgs.map((m, i) => ({ role: m.role, content: m.content, id: `${sessionId}-${i}` })));
       setCurrentSessionId(sessionId);
     } else {
       setCurrentSessionId(sessionId);
@@ -428,7 +453,7 @@ export default function ChatApp({ onAdminClick, onProfileClick, embedded = false
   };
 
   const deleteSession = async (sessionId: string) => {
-    localChatSessions.delete(sessionId);
+    await unifiedChatSessions.delete(sessionId, authSource);
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     if (currentSessionId === sessionId) clearChat();
     setDeleteConfirm(null);

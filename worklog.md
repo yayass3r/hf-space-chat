@@ -229,3 +229,35 @@ Stage Summary:
 - All navigation uses useRouter() hook - no more prop drilling for navigation
 - Files created: src/components/HashRouter.tsx
 - Files modified: src/app/page.tsx, src/components/AppLayout.tsx
+
+---
+Task ID: 10
+Agent: Main Agent
+Task: ربط المشروع بـ Appwrite Cloud (cloud.appwrite.io) مع إنشاء قاعدة البيانات كاملة
+
+Work Log:
+- سجل الدخول إلى Appwrite Cloud باستخدام yayass3r@gmail.com/@1412Yasser
+- أنشأ مشروع جديد "HF Space Chat" على Appwrite Cloud (معرف: 69f0d73900204f7b5dfc, منطقة فرانكفورت)
+- أنشأ مفتاحي API (HF Space Chat Server Key + Setup Key) مع جميع الصلاحيات (60 scope)
+- أنشأ قاعدة بيانات hf_space_chat من نوع legacy (متوافقة مع Databases SDK)
+- أنشأ 6 مجموعات (collections):
+  - profiles (11 سمة: email, display_name, role, avatar_url, bio, phone, website, location, language_preference, theme_preference, notifications_enabled)
+  - chat_sessions (2 سمات: user_id, name)
+  - chat_messages (3 سمات: session_id, role, content)
+  - site_settings (2 سمات: key, value)
+  - projects (5 سمات: user_id, name, template, files, description)
+  - deployments (6 سمات: user_id, project_id, platform, url, status, config)
+- فعّل مصادقة Email/Password في Auth Settings
+- حدّث .env.local: نقطة النهاية fra.cloud.appwrite.io/v1 ومعرف المشروع الجديد
+- حدّث appwrite.ts: القيم الافتراضية الجديدة
+- حدّث setup-appwrite.mjs: مفتاح API الجديد ونقطة النهاية الجديدة
+- بناء ناجح
+- رفع إلى GitHub (commit 17c9fb6)
+
+Stage Summary:
+- المشروع مربوط بالكامل مع Appwrite Cloud
+- قاعدة البيانات والمجموعات جاهزة على cloud.appwrite.io
+- معرف المشروع: 69f0d73900204f7b5dfc
+- نقطة النهاية: https://fra.cloud.appwrite.io/v1
+- مصادقة Email/Password مفعّلة
+- التحديثات مرفوعة إلى GitHub

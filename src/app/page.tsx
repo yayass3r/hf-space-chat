@@ -14,7 +14,7 @@ import { NotificationProvider } from "@/components/NotificationSystem";
 import { ThemeProvider } from "@/components/ThemeContext";
 
 function AppContent() {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, loading, authSource } = useAuth();
   const { currentPage, navigate } = useRouter();
 
   // Loading state
@@ -50,6 +50,7 @@ function AppContent() {
           <HomePage
             user={user}
             isAdmin={isAdmin}
+            authSource={authSource}
           />
         );
       case "chat":
@@ -84,6 +85,7 @@ function AppContent() {
           <HomePage
             user={user}
             isAdmin={isAdmin}
+            authSource={authSource}
           />
         );
     }

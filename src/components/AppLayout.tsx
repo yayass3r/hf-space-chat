@@ -6,6 +6,7 @@ import { useRouter, type AppPage } from "./HashRouter";
 import { useTheme } from "./ThemeContext";
 import { supabase, checkSupabaseConnection, loadSettings, DEFAULT_SETTINGS, AVAILABLE_MODELS, type SiteSettings } from "@/lib/supabase";
 import { localProfiles } from "@/lib/localdb";
+import { unifiedStats, ensureLocalProfileForAppwriteUser } from "@/lib/datasource";
 import { checkAppwriteConnection, getIsAppwriteConfigured } from "@/lib/appwrite";
 import type { UserProfile } from "@/lib/types";
 import { UserAvatar } from "./UserProfile";
@@ -174,7 +175,7 @@ function ConnectionBadge({ dbStatus, appwriteStatus }: { dbStatus: "checking" | 
 }
 
 // ==================== HOME PAGE ====================
-function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; created_at?: string } | null; isAdmin: boolean; }) {
+function HomePage({ user, isAdmin, authSource }: { user: { email?: string; id?: string; created_at?: string } | null; isAdmin: boolean; authSource: string; }) {
   const { navigate, goBack, canGoBack } = useRouter();
   const { isDark } = useTheme();
   const [stats, setStats] = useState({ sessions: 0, messages: 0, projects: 0 });
@@ -189,25 +190,22 @@ function HomePage({ user, isAdmin }: { user: { email?: string; id?: string; crea
   }, []);
 
   useEffect(() => {
-    if (!supabase || !user) return;
+    if (!user) return;
     async function loadStats() {
       try {
-        const [sessionsRes, messagesRes, projectsRes] = await Promise.all([
-          supabase!.from("projects").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
-          supabase!.from("ai_chat_messages").select("id", { count: "exact", head: true }),
-          supabase!.from("projects").select("id", { count: "exact", head: true }).eq("user_id", user!.id).neq("template", "chat"),
-        ]);
+        // Use unified stats (works with any auth source)
+        const stats = unifiedStats.getForUser(user!.id!, authSource as "supabase" | "appwrite" | "local");
         startTransition(() => {
           setStats({
-            sessions: sessionsRes.count || 0,
-            messages: messagesRes.count || 0,
-            projects: projectsRes.count || 0,
+            sessions: stats.sessions,
+            messages: stats.messages,
+            projects: 0, // Projects count from builder, not critical
           });
         });
       } catch {}
     }
     loadStats();
-  }, [user]);
+  }, [user, authSource]);
 
   const quickActions = [
     { page: "chat" as AppPage, icon: "💬", label: "محادثة جديدة", desc: "تحدث مع الذكاء الاصطناعي", color: "from-blue-500 to-cyan-400", bg: "bg-blue-500/10 dark:bg-blue-500/5" },
@@ -362,6 +360,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
     async function loadProfile() {
+      // Ensure Appwrite users have a local profile too
+      if (authSource === "appwrite") {
+        ensureLocalProfileForAppwriteUser(user!.id, user!.email || "", (user!.user_metadata as Record<string, unknown>)?.full_name as string || "");
+      }
       try {
         if (supabase) {
           const { data } = await supabase.from("profiles").select("*").eq("id", user!.id).single();
@@ -379,7 +381,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       } catch {}
     }
     loadProfile();
-  }, [user]);
+  }, [user, authSource]);
 
   // Check DB connections
   useEffect(() => {

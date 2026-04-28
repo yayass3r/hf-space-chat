@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { supabase, isSupabaseConfigured, isAdminEmail } from "@/lib/supabase";
 import { localAuth, localProfiles, isLocalDBReady } from "@/lib/localdb";
+import { ensureLocalProfileForAppwriteUser } from "@/lib/datasource";
 import { appwriteAuth, checkAppwriteConnection, getIsAppwriteConfigured } from "@/lib/appwrite";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -151,6 +152,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (awUser && !cancelled) {
             // Convert Appwrite user to Supabase-compatible User object
             const sbUser = appwriteToSupabaseUser(awUser);
+            // Ensure local profile exists for Appwrite users
+            ensureLocalProfileForAppwriteUser(sbUser.id, sbUser.email || "", sbUser.user_metadata?.full_name as string || "");
             setUser(sbUser);
             updateAdminStatus(sbUser);
             setIsLocalAuth(false);
@@ -290,6 +293,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const result = await appwriteAuth.signIn(email, password);
         if (result.user) {
           const sbUser = appwriteToSupabaseUser(result.user);
+          // Ensure local profile exists for Appwrite users
+          ensureLocalProfileForAppwriteUser(sbUser.id, sbUser.email || "", sbUser.user_metadata?.full_name as string || "");
           setUser(sbUser);
           updateAdminStatus(sbUser);
           setIsLocalAuth(false);
@@ -357,6 +362,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const result = await appwriteAuth.signUp(email, password, email.split("@")[0]);
         if (result.user) {
           const sbUser = appwriteToSupabaseUser(result.user);
+          // Ensure local profile exists for Appwrite users
+          ensureLocalProfileForAppwriteUser(sbUser.id, sbUser.email || "", sbUser.user_metadata?.full_name as string || "");
           setUser(sbUser);
           updateAdminStatus(sbUser);
           setIsLocalAuth(false);
